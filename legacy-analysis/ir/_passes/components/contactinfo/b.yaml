@@ -1,0 +1,626 @@
+records:
+  - record_key: customer-management-entity-0001
+    kind: entity
+    capability_key: customer-management
+    requirement: >
+      The system SHALL provide an entity to manage customer contact information
+      comprising given name, family name, telephone number, email address, and
+      an associated address record.
+    confidence: high
+    confidence_basis: >
+      Entity structure is enforced declaratively in ejb-jar.xml as CMP fields
+      and backed by ContactInfoEJB implementation. All attributes are present
+      in both the local interface and the DTO class with consistent naming.
+      This is declared in multiple independent layers (ejb-jar.xml, Java
+      interfaces, implementation class).
+    risk_class: operational
+    basis: >
+      ContactInfoEJB declares four CMP fields (familyName, givenName, telephone,
+      email) and one CMR field (address). ContactInfoLocal interface exposes
+      getters and setters. ContactInfo DTO class mirrors all fields.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/contactinfo/src/ejb-jar.xml
+        line_start: 46
+        line_end: 84
+        excerpt: |
+          <entity>
+            <display-name>ContactInfoEB</display-name>
+            <ejb-name>ContactInfoEJB</ejb-name>
+            ...
+            <cmp-field>
+              <field-name>familyName</field-name>
+            </cmp-field>
+            <cmp-field>
+              <field-name>givenName</field-name>
+            </cmp-field>
+            <cmp-field>
+              <field-name>telephone</field-name>
+            </cmp-field>
+            <cmp-field>
+              <field-name>email</field-name>
+            </cmp-field>
+          </entity>
+      - path: legacy-source/petstore1.3.2/src/components/contactinfo/src/com/sun/j2ee/blueprints/contactinfo/ejb/ContactInfoEJB.java
+        line_start: 52
+        line_end: 73
+        excerpt: |
+          public abstract class ContactInfoEJB implements javax.ejb.EntityBean {
+            public abstract String getFamilyName();
+            public abstract void setFamilyName(String familyName);
+            public abstract String getGivenName();
+            public abstract void setGivenName(String givenName);
+            public abstract String getTelephone();
+            public abstract void setTelephone(String telephone);
+            public abstract String getEmail();
+            public abstract void setEmail(String email);
+            public abstract AddressLocal getAddress();
+            public abstract void setAddress(AddressLocal address);
+          }
+
+  - record_key: customer-management-entity-0002
+    kind: entity
+    capability_key: customer-management
+    requirement: >
+      The system SHALL provide an address entity with fields for street address
+      (primary and secondary), city, state/province, postal/zip code, and country.
+    confidence: high
+    confidence_basis: >
+      Address entity structure is declared in ejb-jar.xml as a separate EJB
+      with CMP fields and enforced consistently across the EJB layer. All
+      fields are present in both interfaces and implementation.
+    risk_class: operational
+    basis: >
+      AddressEJB is declared in ejb-jar.xml with CMP fields: streetName1,
+      streetName2, city, state, zipCode, country. These are exposed in the
+      local interface and referenced by ContactInfoEJB via CMR field.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/contactinfo/src/ejb-jar.xml
+        line_start: 85
+        line_end: 124
+        excerpt: |
+          <entity>
+            <display-name>AddressEB</display-name>
+            <ejb-name>AddressEJB</ejb-name>
+            ...
+            <cmp-field>
+              <field-name>zipCode</field-name>
+            </cmp-field>
+            <cmp-field>
+              <field-name>streetName2</field-name>
+            </cmp-field>
+            <cmp-field>
+              <field-name>state</field-name>
+            </cmp-field>
+            <cmp-field>
+              <field-name>streetName1</field-name>
+            </cmp-field>
+            <cmp-field>
+              <field-name>city</field-name>
+            </cmp-field>
+            <cmp-field>
+              <field-name>country</field-name>
+            </cmp-field>
+          </entity>
+
+  - record_key: customer-management-relationship-0001
+    kind: business-rule
+    capability_key: customer-management
+    requirement: >
+      The system SHALL maintain a mandatory one-to-one relationship between
+      ContactInfo and Address such that each ContactInfo is associated with
+      exactly one Address record.
+    confidence: high
+    confidence_basis: >
+      The one-to-one multiplicity is declared declaratively in ejb-jar.xml
+      in the relationships section, and enforced in both the ContactInfoEJB
+      implementation (ejbPostCreate methods always create/set an Address) and
+      the DTD schema which embeds Address within ContactInfo.
+    risk_class: operational
+    basis: >
+      ejb-jar.xml declares a relationship with multiplicity One for both
+      ContactInfoEJB and AddressEJB. ContactInfoEJB.ejbPostCreate always
+      creates an Address via ServiceLocator or accepts one as parameter.
+      Cascade delete is enabled on the Address side.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/contactinfo/src/ejb-jar.xml
+        line_start: 126
+        line_end: 148
+        excerpt: |
+          <relationships>
+            <ejb-relation>
+              <ejb-relationship-role>
+                <ejb-relationship-role-name>ContactInfoEJB</ejb-relationship-role-name>
+                <multiplicity>One</multiplicity>
+                <relationship-role-source>
+                  <ejb-name>ContactInfoEJB</ejb-name>
+                </relationship-role-source>
+                <cmr-field>
+                  <cmr-field-name>address</cmr-field-name>
+                </cmr-field>
+              </ejb-relationship-role>
+              <ejb-relationship-role>
+                <ejb-relationship-role-name>AddressEJB</ejb-relationship-role-name>
+                <multiplicity>One</multiplicity>
+                <cascade-delete />
+              </ejb-relationship-role>
+            </ejb-relation>
+          </relationships>
+      - path: legacy-source/petstore1.3.2/src/components/contactinfo/src/com/sun/j2ee/blueprints/contactinfo/ejb/ContactInfoEJB.java
+        line_start: 81
+        line_end: 91
+        excerpt: |
+          public void ejbPostCreate () throws CreateException {
+            try {
+              ServiceLocator serviceLocator = new ServiceLocator();
+              AddressLocalHome adh = (AddressLocalHome)
+                  serviceLocator.getLocalHome(JNDINames.ADDR_EJB);
+              AddressLocal address = adh.create();
+              setAddress(address);
+            } catch (ServiceLocatorException ne) {
+              throw new CreateException("ContactInfoEJB error: ServiceLocator exception looking up address");
+            }
+          }
+
+  - record_key: customer-management-relationship-0002
+    kind: business-rule
+    capability_key: customer-management
+    requirement: >
+      The system SHALL cascade-delete the associated Address entity when
+      a ContactInfo entity is deleted.
+    confidence: high
+    confidence_basis: >
+      Cascade delete is declared explicitly in ejb-jar.xml on the Address
+      relationship role, indicating container-managed deletion of dependent
+      Address records.
+    risk_class: operational
+    basis: >
+      ejb-jar.xml explicitly declares <cascade-delete /> on the AddressEJB
+      relationship role, which means when ContactInfo is removed, its
+      associated Address is automatically deleted by the container.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/contactinfo/src/ejb-jar.xml
+        line_start: 139
+        line_end: 146
+        excerpt: |
+          <ejb-relationship-role>
+            <ejb-relationship-role-name>AddressEJB</ejb-relationship-role-name>
+            <multiplicity>One</multiplicity>
+            <cascade-delete />
+          </ejb-relationship-role>
+
+  - record_key: customer-management-workflow-0001
+    kind: workflow
+    capability_key: customer-management
+    requirement: >
+      The system SHALL support creation of a ContactInfo entity with all
+      fields (givenName, familyName, telephone, email, address) provided
+      at creation time and association with a new or existing Address.
+    confidence: high
+    confidence_basis: >
+      Two create methods are declared in ContactInfoLocalHome interface and
+      implemented in ContactInfoEJB. One accepts individual fields plus an
+      Address, the other accepts a ContactInfo DTO. The ejbPostCreate
+      implementation shows Address is either provided or created. This is
+      used consistently in the customer creation JSP.
+    risk_class: operational
+    basis: >
+      ContactInfoLocalHome.create(String givenName, String familyName,
+      String telephone, String email, AddressLocal address) and
+      create(ContactInfo contactInfo) are declared. ContactInfoEJB implements
+      both with corresponding ejbPostCreate methods that handle Address
+      association.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/contactinfo/src/com/sun/j2ee/blueprints/contactinfo/ejb/ContactInfoLocalHome.java
+        line_start: 49
+        line_end: 52
+        excerpt: |
+          public ContactInfoLocal create(String givenName, String familyName,
+                                         String telephone, String email, AddressLocal address) throws CreateException;
+          public ContactInfoLocal create(ContactInfo contactInfo) throws CreateException;
+      - path: legacy-source/petstore1.3.2/src/components/contactinfo/src/com/sun/j2ee/blueprints/contactinfo/ejb/ContactInfoEJB.java
+        line_start: 93
+        line_end: 127
+        excerpt: |
+          public Object ejbCreate(String givenName, String familyName,
+                                  String telephone, String email, AddressLocal address)
+                                  throws CreateException {
+            setGivenName(givenName);
+            setFamilyName(familyName);
+            setTelephone(telephone);
+            setEmail(email);
+            return null;
+          }
+          public void ejbPostCreate(String givenName, String familyName,
+                                    String telephone, String email,
+                                    AddressLocal address) throws CreateException {
+            setAddress(address);
+          }
+          public Object ejbCreate(ContactInfo contactInfo) throws CreateException {
+            setGivenName(contactInfo.getGivenName());
+            setFamilyName(contactInfo.getFamilyName());
+            setTelephone(contactInfo.getPhone());
+            setEmail(contactInfo.getEmail());
+            return null;
+          }
+          public void ejbPostCreate(ContactInfo contactInfo) throws CreateException {
+            try {
+              ServiceLocator serviceLocator = new ServiceLocator();
+              AddressLocalHome adh = (AddressLocalHome)
+                  serviceLocator.getLocalHome(JNDINames.ADDR_EJB);
+              AddressLocal address = adh.create(contactInfo.getAddress());
+              setAddress(address);
+            } catch (ServiceLocatorException ne) {
+              throw new CreateException("ContactInfoEJB error: ServiceLocator exception looking up address");
+            }
+          }
+
+  - record_key: customer-management-workflow-0002
+    kind: workflow
+    capability_key: customer-management
+    requirement: >
+      The system SHALL support modification of all ContactInfo fields
+      (givenName, familyName, telephone, email, address) individually
+      through setter methods that are transactional.
+    confidence: high
+    confidence_basis: >
+      Setter methods are declared on both ContactInfoLocal interface and
+      ContactInfoEJB implementation class. Each is explicitly marked with
+      transaction attribute "Required" in ejb-jar.xml, ensuring
+      transactional isolation.
+    risk_class: operational
+    basis: >
+      ContactInfoLocal interface declares setters for all fields.
+      ContactInfoEJB implements abstract setters for CMP fields and concrete
+      setter for CMR field. ejb-jar.xml contains container-transaction
+      entries for each setter with trans-attribute Required.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/contactinfo/src/ejb-jar.xml
+        line_start: 312
+        line_end: 430
+        excerpt: |
+          <container-transaction>
+            <method>
+              <ejb-name>ContactInfoEJB</ejb-name>
+              <method-intf>Local</method-intf>
+              <method-name>setFamilyName</method-name>
+              ...
+            </method>
+            <trans-attribute>Required</trans-attribute>
+          </container-transaction>
+          [similar entries for setGivenName, setTelephone, setEmail, setAddress]
+
+  - record_key: customer-management-screen-0001
+    kind: screen
+    capability_key: customer-management
+    requirement: >
+      The system SHALL display and accept customer contact information
+      comprising: First Name (required), Last Name (required), Street Address
+      (required), Street Address 2 (optional), City (required), State/Province
+      (required, select from predefined list), Postal Code (required), Country
+      (required, select from predefined list), Telephone Number (required),
+      and E-Mail (required) in the customer creation and order placement flows.
+    confidence: high
+    confidence_basis: >
+      The exact same contact information fields are displayed in both the
+      create_customer.jsp and enter_order_information.jsp screens. Field
+      layout, labels, and size constraints are consistent across both
+      screens. Validation is applied consistently via waf:form tags.
+      State and Country use hardcoded select options, indicating
+      restricted value sets.
+    risk_class: operational
+    basis: >
+      create_customer.jsp lines 44-124 and enter_order_information.jsp
+      lines 48-330 both render the full contact information form with
+      identical fields. Both use waf:input tags with maxlength constraints
+      and validation="validation" attributes. Both use waf:select for
+      State and Country with hardcoded option values.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/apps/petstore/src/docroot/create_customer.jsp
+        line_start: 49
+        line_end: 124
+        excerpt: |
+          <tr>
+          <td colspan="3"><p class="petstore_title">Contact Information</p></td>
+          </tr>
+          <tr>
+          <td class="petstore_form" align="right"><b>First Name</b></td>
+          <td align="left" colspan="2"><input class="petstore_form" type="text" name="given_name_a"
+          size="30" maxlength="30" value="Duke"></td>
+          </tr>
+          [... City, State, Postal Code, Country, Telephone, Email ...]
+      - path: legacy-source/petstore1.3.2/src/apps/petstore/src/docroot/enter_order_information.jsp
+        line_start: 48
+        line_end: 189
+        excerpt: |
+          <p class="petstore_title">Billing Information</p>
+          <waf:form name="order_ino" method="POST" action="order.do">
+           <table cellpadding="5" cellspacing="0" width="100%" border="0">
+            <tr>
+             <td class="petstore_form" align="right">
+              <b>First Name</b>
+             </td>
+             <td align="left" colspan="2">
+              <waf:input cssClass="petstore_form" type="text"
+                        name="given_name_a" size="30" maxlength="30"
+                        validation="validation">
+               <waf:value><c:out value="${customer.account.contactInfo.givenName}"/></waf:value>
+              </waf:input>
+             </td>
+            </tr>
+
+  - record_key: customer-management-requirement-0001
+    kind: requirement
+    capability_key: customer-management
+    requirement: >
+      The system SHALL limit First Name and Last Name fields to a maximum
+      of 30 characters.
+    confidence: high
+    confidence_basis: >
+      Character limit is enforced consistently in both the customer creation
+      and order information screens via maxlength="30" attribute on input
+      elements. The DTD schema and database constraints would enforce this
+      at the data layer.
+    risk_class: operational
+    basis: >
+      Both create_customer.jsp and enter_order_information.jsp specify
+      maxlength="30" for given_name and family_name input fields. This is
+      also reflected in the field size specifications in waf:input tags
+      with size="30".
+    traces:
+      - path: legacy-source/petstore1.3.2/src/apps/petstore/src/docroot/create_customer.jsp
+        line_start: 56
+        line_end: 65
+        excerpt: |
+          <input class="petstore_form" type="text" name="given_name_a"
+          size="30" maxlength="30" value="Duke">
+          ...
+          <input class="petstore_form" type="text" name="family_name_a"
+          size="30" maxlength="30" value="BluesPrints">
+
+  - record_key: customer-management-requirement-0002
+    kind: requirement
+    capability_key: customer-management
+    requirement: >
+      The system SHALL limit Street Address, City, Email, and Telephone
+      fields to a maximum of 70 characters.
+    confidence: high
+    confidence_basis: >
+      Character limit is enforced consistently across both screens via
+      maxlength="70" attribute on input elements.
+    risk_class: operational
+    basis: >
+      Both JSPs specify maxlength="70" for street address fields (address_1,
+      address_2), city, email, and telephone input fields.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/apps/petstore/src/docroot/create_customer.jsp
+        line_start: 70
+        line_end: 124
+        excerpt: |
+          <input class="petstore_form" type="text" name="address_1_a"
+          size="55" maxlength="70" value="1234 Moon Way">
+          ...
+          <input class="petstore_form" type="text"
+          name="telephone_number_a" size="12" maxlength="70"
+          value="408-555-5555">
+          ...
+          <input class="petstore_form" type="text"
+          name="email_a" size="12" maxlength="70"
+          value="aaa@bbb.ccc">
+
+  - record_key: customer-management-requirement-0003
+    kind: requirement
+    capability_key: customer-management
+    requirement: >
+      The system SHALL restrict State/Province field values to: California,
+      New York, or Texas.
+    confidence: medium
+    confidence_basis: >
+      The state restriction is visible in both JSP screens with hardcoded
+      select option values. However, no validation rule or configuration
+      file is present, and the restriction is only enforced in the UI layer.
+      It is unclear whether backend validation enforces this constraint.
+    risk_class: operational
+    basis: >
+      Both create_customer.jsp and enter_order_information.jsp use waf:select
+      or HTML select elements for State/Province with only three hardcoded
+      option values: "California", "New York", "Texas". No backend validation
+      or database constraint is evident.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/apps/petstore/src/docroot/create_customer.jsp
+        line_start: 91
+        line_end: 94
+        excerpt: |
+          <select size="1" name="state_or_province_a">
+           <option value="California">California</option>
+           <option value="New York">New York</option>
+           <option value="Texas">Texas</option>
+          </select>
+      - path: legacy-source/petstore1.3.2/src/apps/petstore/src/docroot/enter_order_information.jsp
+        line_start: 127
+        line_end: 133
+        excerpt: |
+          <waf:select size="1" name="state_or_province_a">
+           <waf:selected><c:out value="${customer.account.contactInfo.address.state}"/></waf:selected>
+           <waf:option value="California">CA</waf:option>
+           <waf:option value="New York">NY</waf:option>
+           <waf:option value="Texas">TX</waf:option>
+          </waf:select>
+
+  - record_key: customer-management-requirement-0004
+    kind: requirement
+    capability_key: customer-management
+    requirement: >
+      The system SHALL restrict Country field values to: United States,
+      Canada, Japan, or China.
+    confidence: medium
+    confidence_basis: >
+      Country restriction is visible in both JSP screens with hardcoded
+      select option values. However, no validation rule or configuration file
+      is present, and the restriction is only enforced in the UI layer. It is
+      unclear whether backend validation enforces this constraint or whether
+      it is schema-driven.
+    risk_class: operational
+    basis: >
+      Both create_customer.jsp and enter_order_information.jsp use select
+      elements for Country with four hardcoded option values: "United States",
+      "Canada", "Japan", "China". No backend validation or database constraint
+      is evident.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/apps/petstore/src/docroot/create_customer.jsp
+        line_start: 104
+        line_end: 109
+        excerpt: |
+          <select size="1" name="country_a">
+           <option value="USA">United States</option>
+           <option value="Canada">Canada</option>
+           <option value="Japan">Japan</option>
+           <option value="China">China</option>
+          </select>
+      - path: legacy-source/petstore1.3.2/src/apps/petstore/src/docroot/enter_order_information.jsp
+        line_start: 150
+        line_end: 157
+        excerpt: |
+          <waf:select size="1" name="country_a">
+           <waf:selected><c:out value="${customer.account.contactInfo.address.country}"/></waf:selected>
+           <waf:option value="United States">United States</waf:option>
+           <waf:option value="Canada" />
+           <waf:option value="Japan" />
+           <waf:option value="China" />
+          </waf:select>
+
+  - record_key: customer-management-requirement-0005
+    kind: requirement
+    capability_key: customer-management
+    requirement: >
+      The system SHALL support retrieving a ContactInfo entity with all
+      associated data (including nested Address) via the getData() method,
+      returning a snapshot that can be serialized to XML.
+    confidence: high
+    confidence_basis: >
+      ContactInfoEJB.getData() method is implemented to construct a complete
+      ContactInfo DTO including the full Address object. ContactInfo class
+      includes toDOM/fromDOM methods demonstrating XML serialization support.
+      This is accessible through both local interface and DTO pattern.
+    risk_class: operational
+    basis: >
+      ContactInfoEJB.getData() returns a new ContactInfo object populated
+      with all current field values including address. ContactInfo class
+      provides toDOM() and fromDOM() methods for XML serialization, with
+      DTD schema defining the XML structure. The DTO is used as a data
+      carrier between EJB and other layers.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/contactinfo/src/com/sun/j2ee/blueprints/contactinfo/ejb/ContactInfoEJB.java
+        line_start: 129
+        line_end: 137
+        excerpt: |
+          public ContactInfo getData() {
+            ContactInfo contactInfo = new ContactInfo();
+            contactInfo.setGivenName(getGivenName());
+            contactInfo.setFamilyName(getFamilyName());
+            contactInfo.setPhone(getTelephone());
+            contactInfo.setEmail(getEmail());
+            contactInfo.setAddress(getAddress().getData());
+            return contactInfo;
+          }
+      - path: legacy-source/petstore1.3.2/src/components/contactinfo/src/com/sun/j2ee/blueprints/contactinfo/ejb/ContactInfo.java
+        line_start: 133
+        line_end: 161
+        excerpt: |
+          public Node toDOM(Document document) {
+            Element root = document.createElement(XML_CONTACTINFO);
+            XMLDocumentUtils.appendChild(document, root, XML_FAMILY_NAME, familyName);
+            XMLDocumentUtils.appendChild(document, root, XML_GIVEN_NAME, givenName);
+            root.appendChild(address.toDOM(document));
+            XMLDocumentUtils.appendChild(document, root, XML_EMAIL, email);
+            XMLDocumentUtils.appendChild(document, root, XML_PHONE, phone);
+            return root;
+          }
+          public static ContactInfo fromDOM(Node node) throws XMLDocumentException {
+            ...
+            ContactInfo contactInfo = new ContactInfo();
+            ...
+            contactInfo.address = Address.fromDOM(child);
+            ...
+            return contactInfo;
+          }
+
+  - record_key: customer-management-requirement-0006
+    kind: requirement
+    capability_key: customer-management
+    requirement: >
+      The system SHALL provide unauthenticated access to all ContactInfo
+      entity methods (getters, setters, create, remove, find).
+    confidence: high
+    confidence_basis: >
+      All methods in ejb-jar.xml are declared with <unchecked /> in the
+      method-permission assembly-descriptor, indicating no role-based access
+      control is enforced. The security-identity uses <use-caller-identity />
+      rather than run-as, meaning the caller's identity is propagated but
+      no method-level authorization is checked.
+    risk_class: operational
+    basis: >
+      ejb-jar.xml assembly-descriptor contains method-permission entries for
+      all ContactInfoEJB and AddressEJB methods, all marked with <unchecked />.
+      This means any caller can invoke any method without authorization checks.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/contactinfo/src/ejb-jar.xml
+        line_start: 149
+        line_end: 290
+        excerpt: |
+          <assembly-descriptor>
+            <method-permission>
+              <unchecked />
+              <method>
+                <ejb-name>ContactInfoEJB</ejb-name>
+                <method-intf>Local</method-intf>
+                <method-name>setFamilyName</method-name>
+                ...
+              </method>
+              ...
+            </method-permission>
+
+findings:
+  - kind: ambiguity
+    path: legacy-source/petstore1.3.2/src/apps/petstore/src/docroot/enter_order_information.jsp
+    description: >
+      The enter_order_information.jsp uses two separate contact info forms
+      labeled "Billing Information" and "Shipping Information" that both
+      pre-populate with the same customer.account.contactInfo values. It is
+      unclear whether the system maintains separate billing and shipping
+      contact info (two ContactInfo entities per customer) or whether both
+      sections update the same ContactInfo entity. The JSP field names suggest
+      they map to separate backend fields (_a suffix for billing, _b suffix
+      for shipping), but the relationship between form submission and EJB
+      state is unresolved without seeing the order processing Action class.
+
+  - kind: ambiguity
+    path: legacy-source/petstore1.3.2/src/components/contactinfo/src/ejb-jar.xml
+    description: >
+      The ContactInfoEJB prim-key-class is declared as java.lang.Object
+      rather than a specific key class (e.g., Integer or String). This
+      suggests the primary key is auto-generated by the container, but no
+      auto-increment configuration is visible. The key generation strategy
+      and whether it is a database-level auto-increment, sequence, or
+      application-assigned value is unresolved.
+
+  - kind: ambiguity
+    path: legacy-source/petstore1.3.2/src/apps/petstore/src/docroot/create_customer.jsp
+    description: >
+      The create_customer.jsp contains hardcoded default values for address
+      fields (e.g., "1234 Moon Way", "Sunville", "408-555-5555",
+      "aaa@bbb.ccc"). It is unclear whether these are test fixtures or
+      production defaults. If they are production defaults, then a business
+      rule exists that new customers receive this default address unless
+      explicitly changed.
+
+  - kind: unparseable
+    path: legacy-source/petstore1.3.2/src/apps/petstore/src/docroot/enter_order_information.jsp
+    description: >
+      The order information form uses a custom WAF tag library (waf:input,
+      waf:form, waf:select) for rendering and validation. The validation
+      attribute on waf:input is set to "validation" (a string reference),
+      but the source of validation rules and their scope is not visible in
+      the contactinfo component. To determine what validation is actually
+      applied to ContactInfo fields, examination of the WAF framework
+      configuration (likely validation.xml) would be required, which is
+      outside this component.
