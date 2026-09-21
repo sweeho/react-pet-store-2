@@ -1,0 +1,442 @@
+records:
+  - record_key: NOTIF-WORKFLOW-0001
+    kind: workflow
+    capability_key: notifications
+    requirement: >
+      The system SHALL receive email notifications asynchronously via a
+      message-driven bean that listens to a JMS Queue for incoming mail messages.
+    confidence: high
+    confidence_basis: >
+      Both passes will find this requirement enforced in two independent places:
+      the ejb-jar.xml declares the message-driven-destination, and MailerMDB
+      implements MessageListener with onMessage callback. The architecture is
+      explicit and declared.
+    risk_class: operational
+    basis: >
+      The MailerMDB class implements MessageDrivenBean and MessageListener,
+      with an onMessage() method that processes javax.jms.Message objects.
+      The ejb-jar.xml declares it as a message-driven bean listening to a
+      javax.jms.Queue.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/mailer/src/ejb-jar.xml
+        line_start: 48
+        line_end: 64
+        excerpt: |
+          <message-driven>
+            <description>opc node to process PurchaseOrders from the Java Pet Store</description>
+            <display-name>MailerMDB</display-name>
+            <ejb-name>MailerMDB</ejb-name>
+            <ejb-class>com.sun.j2ee.blueprints.mailer.ejb.MailerMDB</ejb-class>
+            <transaction-type>Container</transaction-type>
+            <message-driven-destination>
+              <destination-type>javax.jms.Queue</destination-type>
+            </message-driven-destination>
+      - path: legacy-source/petstore1.3.2/src/components/mailer/src/com/sun/j2ee/blueprints/mailer/ejb/MailerMDB.java
+        line_start: 56
+        line_end: 60
+        excerpt: |
+          public class MailerMDB implements MessageDrivenBean, MessageListener {
+            private Context context;
+            private MessageDrivenContext mdc = null;
+
+  - record_key: NOTIF-REQUIREMENT-0001
+    kind: requirement
+    capability_key: notifications
+    requirement: >
+      When a TextMessage arrives on the mailer queue, the system SHALL parse
+      the message text as XML, deserialize it into a Mail object containing
+      address, subject, and content, and send an email to the specified address.
+    confidence: high
+    confidence_basis: >
+      Both passes will find this flow explicit in the onMessage() method.
+      The data structure is validated against a DTD, and the parsing logic
+      is declarative (XML deserialization).
+    risk_class: operational
+    basis: >
+      The onMessage() method extracts text from the TextMessage, calls
+      Mail.fromXML() to deserialize it, extracts the address/subject/content,
+      and passes them to sendMail(). The Mail class enforces the structure
+      (Address, Subject, Content) via DTD validation.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/mailer/src/com/sun/j2ee/blueprints/mailer/ejb/MailerMDB.java
+        line_start: 74
+        line_end: 91
+        excerpt: |
+          public void onMessage(Message recvMsg) {
+            TextMessage textMessage = null;
+            String xmlMailMessage = null;
+            Mail recMail = null;
+            try {
+              textMessage = (TextMessage)recvMsg;
+              xmlMailMessage = textMessage.getText();
+              recMail = Mail.fromXML(xmlMailMessage);
+              sendMail(recMail.getAddress(), recMail.getSubject(), recMail.getContent(),  Locale.getDefault());
+            } catch (MailerAppException me) {
+              //throw new EJBException("MailerMDB.onMessage" + me);
+              //ignore since user probably forgot to set up mail server
+            } catch (XMLDocumentException xde) {
+              throw new EJBException("MailerMDB.onMessage" + xde);
+            } catch(JMSException je) {
+              throw new EJBException("MailerMDB.onMessage" + je);
+            }
+          }
+      - path: legacy-source/petstore1.3.2/src/components/mailer/src/com/sun/j2ee/blueprints/mailer/rsrc/schemas/Mail.dtd
+        line_start: 38
+        line_end: 41
+        excerpt: |
+          <!ELEMENT Mail (Address, Subject, Content)>
+          <!ELEMENT Address (#PCDATA)>
+          <!ELEMENT Subject (#PCDATA)>
+          <!ELEMENT Content (#PCDATA)>
+    stack_metadata:
+      ejb.bean: MailerMDB
+      jms.queue: mailer queue (JNDI lookup via container)
+
+  - record_key: NOTIF-REQUIREMENT-0002
+    kind: requirement
+    capability_key: notifications
+    requirement: >
+      The system SHALL send email using the J2EE Mail Session resource
+      looked up from JNDI at "java:comp/env/mail/MailSession".
+    confidence: high
+    confidence_basis: >
+      Both passes will find this declared in ejb-jar.xml as a resource-ref
+      and used programmatically in MailHelper via JNDI lookup.
+    risk_class: operational
+    basis: >
+      The ejb-jar.xml declares a resource-ref with res-ref-name
+      "mail/MailSession" and res-type "javax.mail.Session". MailHelper
+      performs an InitialContext lookup at "java:comp/env/mail/MailSession"
+      to obtain the configured Session.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/mailer/src/ejb-jar.xml
+        line_start: 58
+        line_end: 63
+        excerpt: |
+          <resource-ref>
+             <res-ref-name>mail/MailSession</res-ref-name>
+             <res-type>javax.mail.Session</res-type>
+             <res-auth>Container</res-auth>
+             <res-sharing-scope>Shareable</res-sharing-scope>
+           </resource-ref>
+      - path: legacy-source/petstore1.3.2/src/components/mailer/src/com/sun/j2ee/blueprints/mailer/ejb/MailHelper.java
+        line_start: 70
+        line_end: 78
+        excerpt: |
+          public void createAndSendMail(String emailAddress, String subject, String mailContent, Locale locale) throws MailerAppException {
+              try {
+                  InitialContext ic = new InitialContext();
+                  Session session = (Session) ic.lookup(JNDINames.MAIL_SESSION);
+              Message msg = new MimeMessage(session);
+                  msg.setFrom();
+      - path: legacy-source/petstore1.3.2/src/components/mailer/src/com/sun/j2ee/blueprints/mailer/util/JNDINames.java
+        line_start: 49
+        line_end: 50
+        excerpt: |
+          public static final String MAIL_SESSION =
+                "java:comp/env/mail/MailSession";
+    stack_metadata:
+      ejb.bean: MailerMDB
+      jms.queue: mailer queue (JNDI lookup via container)
+
+  - record_key: NOTIF-REQUIREMENT-0003
+    kind: requirement
+    capability_key: notifications
+    requirement: >
+      Email messages SHALL be sent with HTML content type ("text/html").
+    confidence: high
+    confidence_basis: >
+      The content type is hardcoded in MailHelper.createAndSendMail(),
+      and it is the only path through which emails are sent. No configuration
+      or variation exists.
+    risk_class: operational
+    basis: >
+      MailHelper.createAndSendMail() constructs a ByteArrayDataSource with
+      hardcoded contentType "text/html" and wraps it in a DataHandler attached
+      to the MimeMessage.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/mailer/src/com/sun/j2ee/blueprints/mailer/ejb/MailHelper.java
+        line_start: 79
+        line_end: 82
+        excerpt: |
+              String contentType = "text/html";
+                  StringBuffer sb = new StringBuffer(mailContent);
+                msg.setDataHandler(new DataHandler(
+                                    new ByteArrayDataSource(sb.toString(), contentType)));
+    stack_metadata:
+      ejb.bean: MailerMDB
+
+  - record_key: NOTIF-REQUIREMENT-0004
+    kind: requirement
+    capability_key: notifications
+    requirement: >
+      Email message content SHALL be encoded as UTF-8 before being wrapped
+      in a MIME message.
+    confidence: high
+    confidence_basis: >
+      The encoding is explicit in the ByteArrayDataSource constructor and is
+      the only path through which content is encoded before transmission.
+    risk_class: operational
+    basis: >
+      ByteArrayDataSource constructor takes a String, converts it to bytes
+      using "UTF-8" encoding, and stores the byte array for transmission.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/mailer/src/com/sun/j2ee/blueprints/mailer/ejb/ByteArrayDataSource.java
+        line_start: 64
+        line_end: 69
+        excerpt: |
+          ByteArrayDataSource(String data, String type) {
+              try {
+                 this.data = data.getBytes("UTF-8");
+              } catch (UnsupportedEncodingException uex) { }
+              this.type = type;
+          }
+    stack_metadata:
+      ejb.bean: MailerMDB
+
+  - record_key: NOTIF-REQUIREMENT-0005
+    kind: requirement
+    capability_key: notifications
+    requirement: >
+      When the Mail Session is unavailable or an error occurs during email
+      transmission, a MailerAppException SHALL be caught and silently ignored,
+      allowing processing to continue.
+    confidence: medium
+    confidence_basis: >
+      The exception handling in MailerMDB.onMessage() is explicit, and both
+      passes will find the catch block. However, the reason for silent ignoring
+      is stated only in a comment ("ignore since user probably forgot to set up
+      mail server"), which is informal and non-authoritative. The requirement
+      is enforced but the policy rationale is weak.
+    risk_class: operational
+    basis: >
+      MailerMDB.onMessage() catches MailerAppException and deliberately ignores
+      it, as indicated by the commented-out EJBException throw and the inline
+      comment "ignore since user probably forgot to set up mail server".
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/mailer/src/com/sun/j2ee/blueprints/mailer/ejb/MailerMDB.java
+        line_start: 83
+        line_end: 85
+        excerpt: |
+          } catch (MailerAppException me) {
+            //throw new EJBException("MailerMDB.onMessage" + me);
+            //ignore since user probably forgot to set up mail server
+    stack_metadata:
+      ejb.bean: MailerMDB
+
+  - record_key: NOTIF-REQUIREMENT-0006
+    kind: requirement
+    capability_key: notifications
+    requirement: >
+      XML parsing errors (XMLDocumentException) and JMS errors (JMSException)
+      SHALL be wrapped in an EJBException and thrown, causing message processing
+      to fail and the message to be redelivered.
+    confidence: high
+    confidence_basis: >
+      The exception handling is explicit and declarative in the onMessage()
+      method. Both passes will find both the catch blocks and the throw statements.
+    risk_class: operational
+    basis: >
+      MailerMDB.onMessage() catches XMLDocumentException and JMSException
+      separately and throws a new EJBException wrapping each, causing the
+      container to treat the message as unprocessed.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/mailer/src/com/sun/j2ee/blueprints/mailer/ejb/MailerMDB.java
+        line_start: 86
+        line_end: 90
+        excerpt: |
+          } catch (XMLDocumentException xde) {
+            throw new EJBException("MailerMDB.onMessage" + xde);
+          } catch(JMSException je) {
+            throw new EJBException("MailerMDB.onMessage" + je);
+          }
+    stack_metadata:
+      ejb.bean: MailerMDB
+      ejb.transaction: Required (from container-transaction in ejb-jar.xml)
+
+  - record_key: NOTIF-REQUIREMENT-0007
+    kind: requirement
+    capability_key: notifications
+    requirement: >
+      The onMessage() method of MailerMDB SHALL execute with EJB transaction
+      attribute "Required", meaning each message processing MUST run within
+      a container-managed transaction.
+    confidence: high
+    confidence_basis: >
+      The transaction attribute is declared explicitly in ejb-jar.xml under
+      assembly-descriptor/container-transaction, and both passes will find it.
+    risk_class: operational
+    basis: >
+      The ejb-jar.xml assembly-descriptor declares container-transaction for
+      MailerMDB.onMessage() with trans-attribute "Required".
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/mailer/src/ejb-jar.xml
+        line_start: 70
+        line_end: 80
+        excerpt: |
+          <assembly-descriptor>
+            <container-transaction>
+              <method>
+                <ejb-name>MailerMDB</ejb-name>
+                <method-name>onMessage</method-name>
+                <method-params>
+                  <method-param>javax.jms.Message</method-param>
+                </method-params>
+              </method>
+              <trans-attribute>Required</trans-attribute>
+            </container-transaction>
+    stack_metadata:
+      ejb.bean: MailerMDB
+      ejb.transaction: Required
+
+  - record_key: NOTIF-ENTITY-0001
+    kind: entity
+    capability_key: notifications
+    requirement: >
+      A Mail entity contains three required fields: address (email recipient),
+      subject (email subject line), and content (email body text).
+    confidence: high
+    confidence_basis: >
+      The structure is enforced by the Mail.dtd schema and the Mail.java class
+      constructor. Both validation layers are independent and converge on the
+      same three fields.
+    risk_class: operational
+    basis: >
+      The Mail.dtd declares Mail as a required ordered triple of
+      (Address, Subject, Content) elements. The Mail.java class constructor
+      accepts and stores these three fields, and the fromXML/toXML serialization
+      enforces this structure.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/mailer/src/com/sun/j2ee/blueprints/mailer/rsrc/schemas/Mail.dtd
+        line_start: 38
+        line_end: 41
+        excerpt: |
+          <!ELEMENT Mail (Address, Subject, Content)>
+          <!ELEMENT Address (#PCDATA)>
+          <!ELEMENT Subject (#PCDATA)>
+          <!ELEMENT Content (#PCDATA)>
+      - path: legacy-source/petstore1.3.2/src/components/mailer/src/com/sun/j2ee/blueprints/mailer/ejb/Mail.java
+        line_start: 59
+        line_end: 71
+        excerpt: |
+          private String address = null;
+          private String subject  = null;
+          private String content = null;
+
+          private Mail() {}
+
+          public Mail(String address, String subject, String content) {
+            this.address = address;
+            this.subject = subject;
+            this.content = content;
+            return;
+          }
+    stack_metadata:
+      ejb.bean: MailerMDB
+
+  - record_key: NOTIF-REQUIREMENT-0008
+    kind: requirement
+    capability_key: notifications
+    requirement: >
+      Email messages SHALL include a sent-date header with the current system
+      date and time, and a custom X-Mailer header identifying the sender as
+      "JavaMailer".
+    confidence: high
+    confidence_basis: >
+      Both headers are hardcoded in MailHelper.createAndSendMail() and are set
+      on every message sent. No variation or configuration exists.
+    risk_class: presentational
+    basis: >
+      MailHelper.createAndSendMail() explicitly sets msg.setSentDate(new Date())
+      and msg.setHeader("X-Mailer", "JavaMailer") on every MimeMessage.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/mailer/src/com/sun/j2ee/blueprints/mailer/ejb/MailHelper.java
+        line_start: 83
+        line_end: 84
+        excerpt: |
+              msg.setHeader("X-Mailer", "JavaMailer");
+              msg.setSentDate(new Date());
+    stack_metadata:
+      ejb.bean: MailerMDB
+
+  - record_key: NOTIF-REQUIREMENT-0009
+    kind: requirement
+    capability_key: notifications
+    requirement: >
+      Email recipient addresses SHALL be parsed using JavaMail's
+      InternetAddress.parse() method with strict=false, allowing malformed
+      addresses to be accepted without validation.
+    confidence: high
+    confidence_basis: >
+      The parsing logic is explicit in MailHelper.createAndSendMail().
+      The strict=false parameter is hardcoded and is the only path through
+      which recipient addresses are parsed before transmission.
+    risk_class: operational
+    basis: >
+      MailHelper.createAndSendMail() calls InternetAddress.parse(emailAddress, false),
+      where false disables strict RFC validation of email addresses.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/mailer/src/com/sun/j2ee/blueprints/mailer/ejb/MailHelper.java
+        line_start: 76
+        line_end: 77
+        excerpt: |
+            msg.setRecipients(Message.RecipientType.TO,
+                     InternetAddress.parse(emailAddress, false));
+    stack_metadata:
+      ejb.bean: MailerMDB
+
+  - record_key: NOTIF-REQUIREMENT-0010
+    kind: business-rule
+    capability_key: notifications
+    requirement: >
+      Mail.fromXML() SHALL validate incoming XML against the Mail DTD schema
+      using validating=true, causing malformed or invalid messages to throw
+      XMLDocumentException and fail processing.
+    confidence: high
+    confidence_basis: >
+      The validation flag is hardcoded as a class constant (VALIDATING = true)
+      and is used in all public static fromXML() methods. It is enforced at
+      every entry point for XML deserialization.
+    risk_class: operational
+    basis: >
+      The Mail class declares public static final boolean VALIDATING = true
+      and passes this flag to the XML parser in both fromXML(Source) and
+      fromXML(String) methods, ensuring DTD validation on every parse.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/mailer/src/com/sun/j2ee/blueprints/mailer/ejb/Mail.java
+        line_start: 54
+        line_end: 54
+        excerpt: |
+          public static final boolean VALIDATING = true;
+      - path: legacy-source/petstore1.3.2/src/components/mailer/src/com/sun/j2ee/blueprints/mailer/ejb/Mail.java
+        line_start: 121
+        line_end: 123
+        excerpt: |
+          public static Mail fromXML(String buffer) throws XMLDocumentException {
+            return fromXML(buffer, null, VALIDATING);
+          }
+    stack_metadata:
+      ejb.bean: MailerMDB
+
+findings:
+  - kind: ambiguity
+    path: legacy-source/petstore1.3.2/src/components/mailer/src/com/sun/j2ee/blueprints/mailer/ejb/MailerMDB.java
+    description: >
+      The inline comment states "ignore since user probably forgot to set up mail server",
+      but the actual catch block catches MailerAppException, which is the application-specific
+      exception thrown by MailHelper when mail transmission fails. The comment does not explain
+      whether the silent ignoring applies only to Mail Session lookup failures or to ALL mail
+      transmission errors. This ambiguity affects error classification — is a malformed email
+      address treated the same as a missing mail server? The code shows only that MailerAppException
+      is caught and swallowed; the reason (missing server vs. bad data) cannot be determined
+      from the code alone.
+
+  - kind: unparseable
+    path: legacy-source/petstore1.3.2/src/components/mailer/src/com/sun/j2ee/blueprints/mailer/ejb/MailHelper.java
+    description: >
+      The msg.setFrom() call at line 75 passes no argument. In JavaMail, calling setFrom() with
+      no argument uses the default FROM address from the mail server configuration. The code does
+      not show what that default is, or whether it is configurable. It is unclear whether every
+      email uses the same system-wide FROM address, or whether it varies by deployment. This
+      affects the requirement statement — a rule must either say which address is used or say
+      that it is configurable/deployment-dependent.
