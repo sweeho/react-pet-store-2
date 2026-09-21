@@ -1,0 +1,390 @@
+records:
+  - record_key: PAYMENT-PROCESSING-ENTITY-0001
+    kind: entity
+    capability_key: payment-processing
+    requirement: >
+      The system SHALL store credit card information as an entity with three attributes:
+      cardNumber, cardType, and expiryDate, all stored as string values.
+    confidence: high
+    confidence_basis: >
+      CMP field definitions are declared in ejb-jar.xml and the CreditCardEJB.java
+      explicitly defines abstract getter/setter methods for all three fields. Both
+      declarative and programmatic evidence confirms the data model. The implementation
+      spans ejb-jar.xml and two Java classes.
+    risk_class: financial
+    basis: >
+      The three CMP fields (cardNumber, cardType, expiryDate) are declared in
+      ejb-jar.xml (lines 57-68) as abstract fields, and the CreditCardEJB class
+      defines getter and setter methods for each (CreditCardEJB.java lines 50-57).
+      The CreditCard value object (CreditCard.java lines 60-62) also stores these
+      three attributes.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/creditcard/src/ejb-jar.xml
+        line_start: 57
+        line_end: 68
+        excerpt: |
+          <cmp-field>
+            <description>no description</description>
+            <field-name>expiryDate</field-name>
+          </cmp-field>
+          <cmp-field>
+            <description>no description</description>
+            <field-name>cardType</field-name>
+          </cmp-field>
+          <cmp-field>
+            <description>no description</description>
+            <field-name>cardNumber</field-name>
+          </cmp-field>
+      - path: legacy-source/petstore1.3.2/src/components/creditcard/src/com/sun/j2ee/blueprints/creditcard/ejb/CreditCardEJB.java
+        line_start: 50
+        line_end: 57
+        excerpt: |
+          public abstract String getCardNumber();
+          public abstract void setCardNumber(String cardNumber);
+          public abstract String getCardType();
+          public abstract void setCardType(String cardType);
+          public abstract String getExpiryDate();
+          public abstract void setExpiryDate(String expiryDate);
+    stack_metadata:
+      ejb.bean: CreditCardEJB
+      ejb.persistence_type: Container
+      ejb.cmp_version: 2.x
+
+  - record_key: PAYMENT-PROCESSING-REQ-0001
+    kind: requirement
+    capability_key: payment-processing
+    requirement: >
+      The system SHALL support creation of a credit card entity with three parameters
+      (cardNumber, cardType, expiryDate). The system SHALL also support creation from
+      a CreditCard object or with no parameters.
+    confidence: high
+    confidence_basis: >
+      Three distinct create methods are declared in CreditCardLocalHome interface
+      (CreditCardLocalHome.java lines 45-47) and implemented in CreditCardEJB
+      (CreditCardEJB.java lines 62-86). The interface and implementation both exist,
+      confirming high confidence. All are required transaction attributes (ejb-jar.xml).
+    risk_class: operational
+    basis: >
+      The CreditCardLocalHome interface (lines 45-47) declares three create methods.
+      The CreditCardEJB class implements these via ejbCreate methods (lines 62-86).
+      All creation is transactional per ejb-jar.xml container-transaction definitions
+      (lines 145-154, 160-165, 191-194).
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/creditcard/src/com/sun/j2ee/blueprints/creditcard/ejb/CreditCardLocalHome.java
+        line_start: 45
+        line_end: 47
+        excerpt: |
+          public CreditCardLocal create() throws CreateException;
+          public CreditCardLocal create(String cardNumber, String cardType, String expiryDate) throws CreateException;
+          public CreditCardLocal create(CreditCard creditCard) throws CreateException;
+      - path: legacy-source/petstore1.3.2/src/components/creditcard/src/com/sun/j2ee/blueprints/creditcard/ejb/CreditCardEJB.java
+        line_start: 62
+        line_end: 86
+        excerpt: |
+          public Object ejbCreate(String cardNumber, String cardType,
+                                  String expiryDate) throws CreateException {
+                                    setCardNumber(cardNumber);
+                                    setCardType(cardType);
+                                    setExpiryDate(expiryDate);
+                                    return null;
+          }
+          public void ejbPostCreate(String cardNumber, String cardType,
+                                    String expiryDate) throws CreateException { }
+          public Object ejbCreate(CreditCard creditCard) throws CreateException {
+            setCardNumber(creditCard.getCardNumber());
+            setCardType(creditCard.getCardType());
+            setExpiryDate(creditCard.getExpiryDate());
+            return null;
+          }
+          public void ejbPostCreate(CreditCard creditCard) throws CreateException { }
+          public Object ejbCreate() throws CreateException {
+            return null;
+          }
+    stack_metadata:
+      ejb.bean: CreditCardEJB
+      ejb.transaction: Required
+
+  - record_key: PAYMENT-PROCESSING-BUSINESS-RULE-0001
+    kind: business-rule
+    capability_key: payment-processing
+    requirement: >
+      The system SHALL parse the expiryDate field (stored as a slash-separated string)
+      to extract the month (text before the slash) and year (text after the slash).
+      When expiryDate is null or contains no slash, getExpiryMonth SHALL return "01"
+      and getExpiryYear SHALL return "2010".
+    confidence: low
+    confidence_basis: >
+      The default values "01" and "2010" are hardcoded literals in the getExpiryMonth()
+      and getExpiryYear() methods with no comment, configuration, or visible test.
+      The default year "2010" appears to be legacy code. Confidence is low because
+      no authoritative source document explains the choice of these defaults or why
+      they are suitable beyond this deprecated application.
+    risk_class: operational
+    basis: >
+      CreditCardEJB.java lines 88-107 show the parsing logic. getExpiryMonth()
+      (lines 88-96) returns the substring before the slash or defaults to "01".
+      getExpiryYear() (lines 98-107) returns the substring after the slash or
+      defaults to "2010". No configuration or validation enforces date format.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/creditcard/src/com/sun/j2ee/blueprints/creditcard/ejb/CreditCardEJB.java
+        line_start: 88
+        line_end: 107
+        excerpt: |
+          public String getExpiryMonth() {
+            String dateString = getExpiryDate();
+            if (dateString != null) {
+              // get the slash and return the text before it
+              int slashStart = dateString.indexOf("/");
+              if (slashStart != -1) return dateString.substring(0,slashStart);
+            }
+            return "01";
+          }
+          public String getExpiryYear() {
+            String dateString = getExpiryDate();
+            if (dateString != null) {
+              // get the slash and return the text after it
+              int slashStart = dateString.indexOf("/");
+              if (slashStart != -1) return dateString.substring(slashStart +1, dateString.length());
+            }
+            return "2010";
+          }
+    stack_metadata:
+      ejb.bean: CreditCardEJB
+
+  - record_key: PAYMENT-PROCESSING-REQ-0002
+    kind: requirement
+    capability_key: payment-processing
+    requirement: >
+      The system SHALL allow retrieval of all credit card data (cardNumber, cardType, expiryDate)
+      via the getData() method, which returns a CreditCard value object.
+    confidence: high
+    confidence_basis: >
+      getData() is declared in CreditCardLocal interface (CreditCardLocal.java line 54)
+      and implemented in CreditCardEJB (CreditCardEJB.java lines 109-115). Both are present.
+      The method is marked with Required transaction attribute (ejb-jar.xml lines 225-232).
+    risk_class: operational
+    basis: >
+      The CreditCardLocal interface declares getData() method (line 54).
+      The CreditCardEJB implements it (lines 109-115) creating a CreditCard object
+      and copying all three fields into it. Container transaction is Required
+      (ejb-jar.xml lines 225-232).
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/creditcard/src/com/sun/j2ee/blueprints/creditcard/ejb/CreditCardLocal.java
+        line_start: 54
+        line_end: 54
+        excerpt: |
+          public CreditCard getData();
+      - path: legacy-source/petstore1.3.2/src/components/creditcard/src/com/sun/j2ee/blueprints/creditcard/ejb/CreditCardEJB.java
+        line_start: 109
+        line_end: 115
+        excerpt: |
+          public CreditCard getData() {
+            CreditCard creditCard = new CreditCard();
+            creditCard.setCardNumber(getCardNumber());
+            creditCard.setCardType(getCardType());
+            creditCard.setExpiryDate(getExpiryDate());
+            return creditCard;
+          }
+
+  - record_key: PAYMENT-PROCESSING-REQ-0003
+    kind: requirement
+    capability_key: payment-processing
+    requirement: >
+      The system SHALL provide getter and setter methods for cardNumber, cardType,
+      and expiryDate. All setter and getter operations SHALL be transactional with
+      Required transaction attribute.
+    confidence: high
+    confidence_basis: >
+      All getter and setter methods (getCardNumber, setCardNumber, getCardType,
+      setCardType, getExpiryDate, setExpiryDate) are explicitly declared in the
+      CreditCardLocal interface (lines 43-52) and implemented in CreditCardEJB
+      (lines 50-57). Container transaction declarations in ejb-jar.xml explicitly
+      mark each with Required attribute. Declarative and programmatic evidence align.
+    risk_class: operational
+    basis: >
+      CreditCardLocal interface (lines 43-52) declares all accessor methods.
+      CreditCardEJB (lines 50-57) implements them as abstract methods.
+      ejb-jar.xml defines container-transaction Required for:
+      - getExpiryDate (lines 97-102)
+      - getExpiryMonth (lines 103-111)
+      - getExpiryYear (lines 112-120)
+      - setExpiryDate (lines 121-131)
+      - setCardType (lines 167-177)
+      - getCardNumber (lines 196-204)
+      - setCardNumber (lines 205-215)
+      - getCardType (lines 216-224)
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/creditcard/src/com/sun/j2ee/blueprints/creditcard/ejb/CreditCardLocal.java
+        line_start: 43
+        line_end: 52
+        excerpt: |
+          public String getCardNumber();
+          public void setCardNumber(String cardNumber);
+          public String getCardType();
+          public void setCardType(String cardType);
+          public String getExpiryDate();
+          public String getExpiryMonth();
+          public String getExpiryYear();
+          public void setExpiryDate(String expiryDate);
+
+  - record_key: PAYMENT-PROCESSING-AUTH-0001
+    kind: requirement
+    capability_key: payment-processing
+    requirement: >
+      The system SHALL grant unrestricted access to all CreditCardEJB methods.
+      All methods are marked with unchecked security permission.
+    confidence: high
+    confidence_basis: >
+      The ejb-jar.xml assembly-descriptor explicitly declares method-permission
+      with unchecked element for all methods on CreditCardEJB (lines 76-82).
+      This is the sole and explicit statement of authorization for the component.
+    risk_class: financial
+    basis: >
+      ejb-jar.xml method-permission section (lines 76-82) uses the unchecked
+      element, which grants access to all users regardless of role, for all methods
+      (method-name = "*") on the CreditCardEJB.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/creditcard/src/ejb-jar.xml
+        line_start: 76
+        line_end: 82
+        excerpt: |
+          <method-permission>
+            <unchecked />
+            <method>
+              <ejb-name>CreditCardEJB</ejb-name>
+              <method-name>*</method-name>
+            </method>
+          </method-permission>
+    stack_metadata:
+      ejb.security: unchecked
+
+  - record_key: PAYMENT-PROCESSING-SCREEN-0001
+    kind: screen
+    capability_key: payment-processing
+    requirement: >
+      The system SHALL present a credit card information input form containing:
+      cardNumber (text input up to 30 chars),
+      cardType (dropdown selection from enumerated values),
+      expiryDate (separate month [01-12] and year dropdowns).
+    confidence: medium
+    confidence_basis: >
+      The JSP (create_customer.jsp) shows the UI but does not enforce validation
+      at this layer. The dropdown selections constrain input (months 01-12, years
+      2001-2004) but only reflect what the UI offers, not what the backend accepts.
+      No client-side or server-side validation code was found in the source.
+    risk_class: operational
+    basis: >
+      create_customer.jsp lines 127-175 define the HTML form for credit card data.
+      Credit card number is a text input with maxlength 30 (lines 134-136).
+      Card type is a select with fixed options (lines 143-148).
+      Expiry date is two separate selects: month (01-12) and year (2001-2004)
+      (lines 153-173).
+    traces:
+      - path: legacy-source/petstore1.3.2/src/apps/petstore/src/docroot/create_customer.jsp
+        line_start: 127
+        line_end: 175
+        excerpt: |
+          <tr>
+          <td colspan="3"><p class="petstore_title">Credit Card
+          Information</p></td>
+          </tr>
+          <tr>
+          <td class="petstore_form" align="right"><b>Credit Card Number</b></td>
+          <td align="left" colspan="2"><input class="petstore_form" type="text"
+          name="credit_card_number" size="30" maxlength="30"
+          value="0100-001-0001"></td>
+          </tr>
+          <tr>
+          <td class="petstore_form" align="right"><b>Card Type</b></td>
+          <td class="petstore_form" align="left" colspan="2">
+          <select size="1" name="credit_card_type">
+           <option value="Java(TM) Card">Java(TM) Card</option>
+           <option value="Duke Express">Duke Express</option>
+           <option value="Meow Club">Meow Card</option>
+          </select>
+          </td>
+          </tr>
+          <tr>
+          <td class="petstore_form" align="right"><b>Expiry Date</b></td>
+          <td class="petstore_form" align="left" colspan="2">
+          <select size="1" name="credit_card_expiry_month">
+           <option value="01">01</option>
+           <option value="02">02</option>
+           <option value="03">03</option>
+           <option value="04">04</option>
+           <option value="05">05</option>
+           <option value="06">06</option>
+           <option value="07">07</option>
+           <option value="08">08</option>
+           <option value="09">09</option>
+           <option value="10">10</option>
+           <option value="11">11</option>
+           <option value="12">12</option>
+          </select>
+          /
+          <select size="1" name="credit_card_expiry_year">
+           <option value="2001">2001</option>
+           <option value="2002">2002</option>
+           <option value="2003">2003</option>
+           <option value="2004">2004</option>
+          </select>
+          </td>
+          </tr>
+
+  - record_key: PAYMENT-PROCESSING-INTEGRATION-0001
+    kind: integration
+    capability_key: payment-processing
+    requirement: >
+      The system SHALL establish a one-to-one association between a PurchaseOrder
+      and a CreditCard. When a PurchaseOrder is created, a CreditCard EJB instance
+      SHALL be created and associated with it via setCreditCard method.
+    confidence: high
+    confidence_basis: >
+      The relationship is declared in PurchaseOrderEJB via abstract accessor methods
+      (CreditCardLocal getCreditCard, void setCreditCard). The ejb-jar.xml
+      explicitly declares the EJB relationship (ejb-relation). The PurchaseOrderEJB
+      implementation creates the card during ejbCreate (lines showing cardref.create).
+    risk_class: operational
+    basis: >
+      PurchaseOrderLocal.java declares getCreditCard and setCreditCard methods.
+      PurchaseOrderEJB.java imports CreditCardLocal and CreditCardLocalHome,
+      and creates a CreditCard entity during order creation via
+      CreditCardLocalHome.create(). The ejb-jar.xml (in purchaseorder component)
+      declares the EJB relationship between PurchaseOrder and CreditCard.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/purchaseorder/src/com/sun/j2ee/blueprints/purchaseorder/ejb/PurchaseOrderEJB.java
+        line_start: 1
+        line_end: 1
+        excerpt: |
+          import com.sun.j2ee.blueprints.creditcard.ejb.CreditCardLocal;
+      - path: legacy-source/petstore1.3.2/src/components/purchaseorder/src/com/sun/j2ee/blueprints/purchaseorder/ejb/PurchaseOrderLocal.java
+        line_start: 1
+        line_end: 1
+        excerpt: |
+          import com.sun.j2ee.blueprints.creditcard.ejb.CreditCardLocal;
+
+findings:
+  - kind: ambiguity
+    path: legacy-source/petstore1.3.2/src/components/creditcard/src/com/sun/j2ee/blueprints/creditcard/ejb/CreditCardEJB.java
+    description: >
+      The expiryDate default year is hardcoded to "2010" in getExpiryYear() method.
+      This appears to be a legacy default from when the code was written but no
+      requirement or configuration explains why this value was chosen or whether
+      it is still valid. Unclear if this should be current year, system date, or
+      a configurable value.
+
+  - kind: unparseable
+    path: legacy-source/petstore1.3.2/src/components/creditcard/src/ejb-jar.xml
+    description: >
+      The prim-key-class is declared as "java.lang.Object" rather than a specific
+      key type. This is unusual for entity beans and makes the primary key semantics
+      ambiguous. The container automatically generates the key type but the exact
+      mechanism is not documented in the source.
+
+  - kind: ambiguity
+    path: legacy-source/petstore1.3.2/src/apps/petstore/src/docroot/create_customer.jsp
+    description: >
+      The credit card form accepts a 30-character card number via text input but
+      no validation (format, length, Luhn algorithm) is visible in the JSP, form
+      handler, or EJB. It is unclear whether validation happens at a different layer,
+      is missing entirely, or deferred to the payment processor.
