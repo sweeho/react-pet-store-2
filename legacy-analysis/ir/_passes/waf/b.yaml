@@ -1,0 +1,383 @@
+records:
+  - record_key: AUTHN-REQ-0001
+    kind: requirement
+    capability_key: authentication
+    requirement: >
+      The system SHALL enforce authentication checks on specified screens. Certain
+      URL paths (e.g. /signin, /editaccount, /placeorder) marked with
+      requiresSignin="true" SHALL only be accessible to authenticated users.
+    confidence: high
+    confidence_basis: >
+      The requiresSignin attribute is explicitly declared in the URL mapping
+      configuration for multiple endpoints, indicating a deliberate framework
+      pattern for authentication checks. Two independent sources confirm this:
+      the declarative requestmappings.xml and the MainServlet/WebController
+      request processing code that checks this attribute.
+    risk_class: regulated
+    basis: >
+      URL mappings in requestmappings.xml declare requiresSignin="true" on
+      specific routes (e.g. /editaccount, /placeorder). The request processor
+      enforces these checks at servlet level before forwarding to screen flow
+      management.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/waf/src/docroot/WEB-INF/xml/requestmappings.xml
+        line_start: 56
+        line_end: 72
+        excerpt: |
+          <url-mapping url="/editaccount" screen="EDIT_ACCOUNT" requiresSignin="true"/>
+          <url-mapping url="/accountedited" screen="ACCOUNT_UPDATED"/>
+
+          <url-mapping url="/signin" screen ="SIGN_IN_SUCCESS" requiresSignin="true"/>
+
+
+          <url-mapping url="/signout" screen="SIGN_OUT" useRequestHandler="true" >
+            <request-handler-class>com.sun.j2ee.blueprints.petstore.control.web.handlers.SignoutHandler</request-handler-class>
+          </url-mapping>
+
+          <url-mapping url="/language" screen="MAIN" useRequestHandler="true" >
+            <request-handler-class>com.sun.j2ee.blueprints.petstore.control.web.handlers.LanguageHandler</request-handler-class>
+          </url-mapping>
+
+          <url-mapping url="/help" screen="HELP"/>
+          <url-mapping url="/checkout" screen="CHECK_OUT"/>
+          <url-mapping url="/placeorder" screen="PLACE_ORDER" requiresSignin="true"/>
+
+  - record_key: AUTHN-REQ-0002
+    kind: requirement
+    capability_key: authentication
+    requirement: >
+      The system SHALL support session-based user state management with a default
+      session timeout of 30 minutes. Sessions exceeding this duration SHALL be
+      invalidated.
+    confidence: high
+    confidence_basis: >
+      Session timeout is explicitly configured in the declarative web.xml
+      deployment descriptor, a reliable source for container-managed session
+      behavior. This is enforced at the servlet container level, independent
+      of application code.
+    risk_class: operational
+    basis: >
+      The web application deployment descriptor explicitly configures a session
+      timeout value that applies to all HTTP sessions in the web tier.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/waf/src/docroot/WEB-INF/web.xml
+        line_start: 100
+        line_end: 102
+        excerpt: |
+          <session-config>
+            <session-timeout>30</session-timeout>
+          </session-config>
+
+  - record_key: AUTHN-SCREEN-0001
+    kind: screen
+    capability_key: authentication
+    requirement: >
+      The system SHALL define a SIGN_IN screen as the authentication entry point.
+      The system SHALL define a SIGN_IN_ERROR screen to display authentication
+      failures. The system SHALL define a SIGN_IN_SUCCESS screen for successful
+      authentication.
+    confidence: high
+    confidence_basis: >
+      Sign-in and error screens are explicitly configured in the declarative
+      request mappings and referenced in multiple URL route mappings. The
+      consistency across the configuration provides high confidence in this
+      requirement.
+    risk_class: operational
+    basis: >
+      Request mapping configuration designates default signin and signin-error
+      screens, and multiple URL mappings reference signin-related screens
+      for result routing.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/waf/src/docroot/WEB-INF/xml/requestmappings.xml
+        line_start: 45
+        line_end: 47
+        excerpt: |
+          <default-screen>MAIN</default-screen>
+          <signin-screen>SIGN_IN</signin-screen>
+          <signin-error-screen>SIGN_IN_ERROR</signin-error-screen>
+
+  - record_key: ADMN-REQ-0001
+    kind: requirement
+    capability_key: admin-operations
+    requirement: >
+      The system SHALL support internationalization (i18n) with multiple locale
+      configurations. At minimum, locales en_US and ja_JP SHALL be supported,
+      with en_US as the default system locale.
+    confidence: high
+    confidence_basis: >
+      Locale support is declared in three independent configuration layers:
+      web.xml (default_locale), requestmappings.xml (screen-definition elements),
+      and Java constants (I18nUtil). All sources consistently specify en_US as
+      default with ja_JP as supported alternate.
+    risk_class: presentational
+    basis: >
+      The MainServlet initializes with a default locale from configuration.
+      The TemplateServlet declares supported locales. Screen definitions are
+      loaded per-language from separate XML files. The framework provides
+      I18nUtil for locale conversion utilities.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/waf/src/docroot/WEB-INF/web.xml
+        line_start: 57
+        line_end: 60
+        excerpt: |
+          <init-param>
+            <param-name>default_locale</param-name>
+            <param-value>en_US</param-value>
+          </init-param>
+      - path: legacy-source/petstore1.3.2/src/waf/src/docroot/WEB-INF/xml/requestmappings.xml
+        line_start: 42
+        line_end: 43
+        excerpt: |
+          <screen-definition url="/WEB-INF/xml/screendefinitions.xml" language="en_US"/>
+          <screen-definition url="/WEB-INF/xml/ja/screendefinitions.xml" language="ja_JP"/>
+
+  - record_key: ADMN-REQ-0002
+    kind: requirement
+    capability_key: admin-operations
+    requirement: >
+      The system SHALL provide a default landing screen (MAIN) that is displayed
+      when no specific screen is requested. The system SHALL provide an ERROR
+      screen for displaying application errors and exceptions.
+    confidence: high
+    confidence_basis: >
+      Default and error screens are explicitly configured in the framework's
+      request mapping configuration. The ScreenFlowManager code references
+      these values during request processing, providing two independent
+      confirmation sources.
+    risk_class: operational
+    basis: >
+      The request mapping configuration declares default-screen and maps
+      exceptions to the ERROR screen. The screen flow manager loads these
+      mappings during initialization and applies them during request routing.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/waf/src/docroot/WEB-INF/xml/requestmappings.xml
+        line_start: 45
+        line_end: 63
+        excerpt: |
+          <default-screen>MAIN</default-screen>
+          <signin-screen>SIGN_IN</signin-screen>
+          <signin-error-screen>SIGN_IN_ERROR</signin-error-screen>
+          <url-mapping url="/main" screen="MAIN"/>
+          <url-mapping url="/search" screen="SEARCH"/>
+          <url-mapping url="/category" screen="CATEGORY"/>
+          <url-mapping url="/product" screen="PRODUCT"/>
+          <url-mapping url="/catalog" screen="CATALOG"/>
+          <url-mapping url="/error" screen="ERROR"/>
+
+  - record_key: ADMN-WORKFLOW-0001
+    kind: workflow
+    capability_key: admin-operations
+    requirement: >
+      The system SHALL support screen flow management via URL-to-screen mappings.
+      Each URL path SHALL map to exactly one screen identifier. The system SHALL
+      support conditional screen flow via optional flow handlers that determine
+      the next screen based on request handler results.
+    confidence: high
+    confidence_basis: >
+      URL mappings and flow handlers are comprehensively declared in the
+      requestmappings.xml configuration file. The URLMappingsXmlDAO and
+      ScreenFlowManager classes are dedicated to parsing and applying these
+      mappings, providing dual confirmation of the workflow pattern.
+    risk_class: operational
+    basis: >
+      The framework defines URL-to-screen mappings in declarative XML. Flow
+      handlers (e.g. SigninFlowHandler, AccountFlowHandler) implement conditional
+      routing based on request handler results, allowing multi-step workflows.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/waf/src/docroot/WEB-INF/xml/requestmappings.xml
+        line_start: 48
+        line_end: 80
+        excerpt: |
+          <url-mapping url="/main" screen="MAIN"/>
+          <url-mapping url="/search" screen="SEARCH"/>
+          <url-mapping url="/category" screen="CATEGORY"/>
+          <url-mapping url="/product" screen="PRODUCT"/>
+          <url-mapping url="/catalog" screen="CATALOG"/>
+          <url-mapping url="/error" screen="ERROR"/>
+          <url-mapping url="/verifysignin" screen ="SIGN_IN_SUCCESS" useRequestHandler="true" useFlowHandler="true">
+              <request-handler-class>com.sun.j2ee.blueprints.petstore.control.web.handlers.SigninHandler</request-handler-class>
+              <flow-handler class="com.sun.j2ee.blueprints.petstore.control.web.handlers.SigninFlowHandler">
+                  <handler-result result="2" screen="SIGN_IN_ERROR"/>
+                  <handler-result result="1" screen="SIGN_IN_SUCCESS"/>
+              </flow-handler>
+          </url-mapping>
+
+  - record_key: ADMN-WORKFLOW-0002
+    kind: business-rule
+    capability_key: admin-operations
+    requirement: >
+      The system SHALL route exceptions by type. When an application exception
+      occurs, the framework SHALL map the exception class to a designated error
+      screen and display that screen to the user.
+    confidence: high
+    confidence_basis: >
+      Exception-to-screen mappings are explicitly configured in requestmappings.xml.
+      The ScreenFlowManager loads these mappings and applies them during request
+      processing. This declarative approach with framework support provides high
+      confidence.
+    risk_class: operational
+    basis: >
+      Exception mapping declarations in requestmappings.xml associate specific
+      exception classes with target screens. The framework's exception handling
+      mechanism consults these mappings when an exception occurs.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/waf/src/docroot/WEB-INF/xml/requestmappings.xml
+        line_start: 129
+        line_end: 131
+        excerpt: |
+          <exception-mapping exception-class="com.sun.j2ee.blueprints.petstore.control.exceptions.SigninFailedException" screen="SIGN_IN_ERROR"/>
+          <exception-mapping exception-class="com.sun.j2ee.blueprints.petstore.control.exceptions.DuplicateAccountException" screen="DUPLICATE_ACCOUNT"/>
+          <exception-mapping exception-class="com.sun.j2ee.blueprints.petstore.control.exceptions.GeneralFailureException" screen="ERROR"/>
+
+  - record_key: ADMN-INTEGRATION-0001
+    kind: integration
+    capability_key: admin-operations
+    requirement: >
+      The system SHALL support request-handler based extension points for custom
+      request processing logic. Request handlers SHALL be invoked during request
+      processing before screen rendering. Request handlers MAY modify request
+      state and determine the next screen via flow handlers.
+    confidence: medium
+    confidence_basis: >
+      Request handlers are declared in requestmappings.xml with useRequestHandler
+      attributes. However, the framework code implementing request handler invocation
+      could not be fully reviewed; confidence is based on configuration and limited
+      code inspection.
+    risk_class: operational
+    basis: >
+      Multiple URL mappings declare useRequestHandler="true" and specify
+      request-handler-class elements. The framework loads handler class names
+      from configuration. The RequestProcessor class is responsible for
+      invoking these handlers.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/waf/src/docroot/WEB-INF/xml/requestmappings.xml
+        line_start: 62
+        line_end: 68
+        excerpt: |
+          <url-mapping url="/signout" screen="SIGN_OUT" useRequestHandler="true" >
+            <request-handler-class>com.sun.j2ee.blueprints.petstore.control.web.handlers.SignoutHandler</request-handler-class>
+          </url-mapping>
+
+          <url-mapping url="/language" screen="MAIN" useRequestHandler="true" >
+            <request-handler-class>com.sun.j2ee.blueprints.petstore.control.web.handlers.LanguageHandler</request-handler-class>
+          </url-mapping>
+
+  - record_key: ADMN-ENTITY-0001
+    kind: entity
+    capability_key: admin-operations
+    requirement: >
+      The system SHALL define Screen entities with the following properties:
+      screen name, template name (optional), and an unordered set of named
+      parameters. Each parameter SHALL have a name, value, and a direct flag
+      indicating whether the value is literal (direct=true) or a resource path
+      (direct=false).
+    confidence: high
+    confidence_basis: >
+      Screen definitions are declared in XML with consistent structure. The
+      Screen Java class implementation (screen-definitions.xml parsing) confirms
+      these exact properties. Multiple examples across language files show
+      consistent structure.
+    risk_class: operational
+    basis: >
+      Screen definitions in screendefinitions.xml consistently use the structure
+      of name, template, and parameter elements. The Screen Java class models
+      these attributes. Example: MAIN screen has name, uses /template.jsp,
+      and has parameters for title, banner, body, footer, etc.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/waf/src/docroot/WEB-INF/xml/screendefinitions.xml
+        line_start: 43
+        line_end: 73
+        excerpt: |
+          <template>/template.jsp</template>
+
+          <screen>
+            <screen-name>MAIN</screen-name>
+            <parameter key="HtmlTitle" value="Welcome to Java Pet Store Demo" direct="true"/>
+            <parameter key="HtmlBanner" value="/banner.jsp" direct="false"/>
+            <parameter key="HtmlBody" value="/index.jsp" direct="false"/>
+            <parameter key="HtmlPetFooter" value="/petfooter.jsp" direct="false"/>
+            <parameter key="HtmlFooter" value="/footer.jsp" direct="false"/>
+            <parameter key="Annotation" value="/estore/annotation/ann_overview_j2ee.jsp" direct="true"/>
+          </screen>
+
+
+          <screen>
+            <screen-name>ERROR</screen-name>
+            <parameter key="HtmlTitle" value="Error" direct="true"/>
+            <parameter key="HtmlBanner" value="/banner.jsp" direct="false"/>
+            <parameter key="HtmlBody" value="/errorpage.jsp" direct="false"/>
+            <parameter key="HtmlFooter" value="/footer.jsp" direct="false"/>
+            <parameter key="Annotation" value="/estore/annotation/ann_all.html" direct="true"/>
+          </screen>
+
+          <screen>
+            <screen-name>SEARCH</screen-name>
+            <parameter key="HtmlTitle" value="Search" direct="true"/>
+            <parameter key="HtmlBanner" value="/banner.jsp" direct="false"/>
+            <parameter key="HtmlTopIndex" value="/topindex.jsp" direct="false"/>
+            <parameter key="HtmlBody" value="/search.jsp" direct="false"/>
+
+  - record_key: ADMN-ENTITY-0002
+    kind: entity
+    capability_key: admin-operations
+    requirement: >
+      The system SHALL support URL mappings. Each URL mapping SHALL specify:
+      URL path, mapped screen identifier, optional requiresSignin flag, and
+      optional request handler and flow handler specifications.
+    confidence: high
+    confidence_basis: >
+      URL mapping structure is consistently declared in requestmappings.xml
+      across all URL entries. The URLMappingsXmlDAO class and URLMapping class
+      implement parsing of this exact structure, providing dual confirmation.
+    risk_class: operational
+    basis: >
+      URL mappings in requestmappings.xml consistently include url and screen
+      attributes, with optional requiresSignin, useRequestHandler, and
+      useFlowHandler attributes. The URLMapping class models these fields.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/waf/src/docroot/WEB-INF/xml/requestmappings.xml
+        line_start: 56
+        line_end: 80
+        excerpt: |
+          <url-mapping url="/editaccount" screen="EDIT_ACCOUNT" requiresSignin="true"/>
+          <url-mapping url="/accountedited" screen="ACCOUNT_UPDATED"/>
+
+          <url-mapping url="/signin" screen ="SIGN_IN_SUCCESS" requiresSignin="true"/>
+
+
+          <url-mapping url="/signout" screen="SIGN_OUT" useRequestHandler="true" >
+            <request-handler-class>com.sun.j2ee.blueprints.petstore.control.web.handlers.SignoutHandler</request-handler-class>
+          </url-mapping>
+
+          <url-mapping url="/language" screen="MAIN" useRequestHandler="true" >
+            <request-handler-class>com.sun.j2ee.blueprints.petstore.control.web.handlers.LanguageHandler</request-handler-class>
+          </url-mapping>
+
+          <url-mapping url="/help" screen="HELP"/>
+          <url-mapping url="/checkout" screen="CHECK_OUT"/>
+          <url-mapping url="/placeorder" screen="PLACE_ORDER" requiresSignin="true"/>
+          <url-mapping url="/productdetails" screen="PRODUCT_DETAILS"/>
+          <url-mapping url="/verifysignin" screen="SIGN_IN_SUCCESS" useRequestHandler="true" useFlowHandler="true">
+              <request-handler-class>com.sun.j2ee.blueprints.petstore.control.web.handlers.SigninHandler</request-handler-class>
+
+findings:
+  - kind: ambiguity
+    path: legacy-source/petstore1.3.2/src/waf/src
+    description: >
+      The WAF is a reusable framework component that does not itself implement
+      business logic — it provides infrastructure for request routing, session
+      management, screen templating, and event processing. Many requirements
+      extracted here are framework capabilities rather than business rules. The
+      mapping of framework requirements to business capabilities (authentication,
+      admin-operations) is somewhat artificial; future maintenance should
+      consider whether framework-level capabilities warrant their own capability
+      category or capability hierarchy.
+
+  - kind: unparseable
+    path: legacy-source/petstore1.3.2/src/waf/src/docroot/WEB-INF/web.xml
+    description: >
+      Two web.xml environment entries (lines 112, 120) have REDACTED values:
+      param/ComponentManager and param/WebController. These appear to be
+      configuration class names for the dependency injection mechanism but
+      cannot be inspected. The framework references these via JNDI, but
+      actual component implementations are not visible in source.
