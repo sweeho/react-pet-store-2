@@ -1,0 +1,794 @@
+records:
+  - record_key: admin-operations-workflow-0001
+    kind: workflow
+    capability_key: admin-operations
+    requirement: >
+      The system SHALL process all HTTP requests (.do URLs) through a central
+      MainServlet entry point that initializes request context, applies default
+      locale settings, delegates to RequestProcessor, and forwards to the
+      ScreenFlowManager for view rendering.
+    confidence: high
+    confidence_basis: >
+      The MainServlet is explicitly defined as the web tier entry point in web.xml
+      servlet configuration (lines 52-61), with synchronized flow through
+      RequestProcessor and ScreenFlowManager observed in source code. Both passes
+      observed the same entry point pattern.
+    risk_class: operational
+    basis: >
+      The MainServlet.doGet/doPost methods (lines 97-106) delegate to doProcess(),
+      which initializes session locale (lines 111-113), invokes RequestProcessor.processRequest(),
+      then ScreenFlowManager.forwardToNextScreen(). Exception handling maps exceptions
+      to error screens (lines 117-128).
+    traces:
+      - path: legacy-source/petstore1.3.2/src/waf/src/controller/com/sun/j2ee/blueprints/waf/controller/web/MainServlet.java
+        line_start: 69
+        line_end: 132
+        excerpt: |
+          public class MainServlet extends HttpServlet {
+              private ServletContext context;
+              private HashMap urlMappings;
+              private HashMap eventMappings;
+              private Locale defaultLocale = null;
+              private RequestProcessor requestProcessor;
+
+              public void init(ServletConfig config) throws ServletException {
+                  String defaultLocaleString = config.getInitParameter("default_locale");
+                  defaultLocale = I18nUtil.getLocaleFromString(defaultLocaleString);
+                  ...
+                  urlMappings = URLMappingsXmlDAO.loadRequestMappings(requestMappingsURL);
+                  eventMappings = URLMappingsXmlDAO.loadEventMappings(requestMappingsURL);
+              }
+
+              private void doProcess(HttpServletRequest request, HttpServletResponse response) {
+                  if (request.getSession().getAttribute(WebKeys.LOCALE) == null) {
+                      request.getSession().setAttribute(WebKeys.LOCALE, defaultLocale);
+                  }
+                  try {
+                      getRequestProcessor().processRequest(request);
+                      getScreenFlowManager().forwardToNextScreen(request,response);
+                  } catch (Throwable ex) {
+                      String nextScreen = getScreenFlowManager().getExceptionScreen(ex);
+                      if (nextScreen == null) {
+                          throw new ServletException("MainServlet: unknown exception: " + className);
+                      }
+                  }
+              }
+          }
+    stack_metadata:
+      framework: J2EE servlet
+      servlet.entry_point: MainServlet
+
+  - record_key: admin-operations-workflow-0002
+    kind: workflow
+    capability_key: admin-operations
+    requirement: >
+      The system SHALL map HTTP request URLs to screen and action definitions via
+      URLMapping objects loaded from /WEB-INF/mappings.xml at servlet initialization,
+      supporting both direct screen mapping and flow handler patterns for dynamic routing.
+    confidence: high
+    confidence_basis: >
+      URLMapping construction and usage is consistent across RequestProcessor and
+      ScreenFlowManager source code. Both XML loading and programmatic access patterns
+      observed in initialization code and request handling flow.
+    risk_class: operational
+    basis: >
+      MainServlet.init() loads URL mappings and event mappings from mappings.xml
+      (lines 85-92). URLMapping objects encapsulate screen names, action classes,
+      and optional flow handlers (URLMapping.java lines 42-116). ScreenFlowManager
+      uses these to route requests either directly to screens or through FlowHandler
+      implementations (ScreenFlowManager.java lines 119-150).
+    traces:
+      - path: legacy-source/petstore1.3.2/src/waf/src/controller/com/sun/j2ee/blueprints/waf/controller/web/MainServlet.java
+        line_start: 79
+        line_end: 95
+        excerpt: |
+          public void init(ServletConfig config) throws ServletException {
+              String defaultLocaleString = config.getInitParameter("default_locale");
+              defaultLocale = I18nUtil.getLocaleFromString(defaultLocaleString);
+              this.context = config.getServletContext();
+              String requestMappingsURL = null;
+              try {
+                  requestMappingsURL = context.getResource("/WEB-INF/mappings.xml").toString();
+              } catch (java.net.MalformedURLException ex) {
+                  System.err.println("MainServlet: initializing ScreenFlowManager malformed URL exception: " + ex);
+              }
+              urlMappings = URLMappingsXmlDAO.loadRequestMappings(requestMappingsURL);
+              context.setAttribute(WebKeys.URL_MAPPINGS, urlMappings);
+              eventMappings = URLMappingsXmlDAO.loadEventMappings(requestMappingsURL);
+              context.setAttribute(WebKeys.EVENT_MAPPINGS, eventMappings);
+      - path: legacy-source/petstore1.3.2/src/waf/src/controller/com/sun/j2ee/blueprints/waf/controller/web/URLMapping.java
+        line_start: 42
+        line_end: 72
+        excerpt: |
+          public class URLMapping implements java.io.Serializable {
+              private String url;
+              private boolean isAction = false;
+              private boolean useFlowHandler = false;
+              private String flowHandler = null;
+              private String webActionClass = null;
+              private String ejbActionClass = null;
+              private HashMap resultMappings;
+              private String screen;
+
+              public URLMapping(String url,
+                                              String screen,
+                                              boolean isAction,
+                                              boolean useFlowHandler,
+                                              String webActionClass,
+                                              String flowHandler,
+                                              HashMap resultMappings) {
+                  this.url = url;
+                  this.flowHandler = flowHandler;
+                  this.webActionClass = webActionClass;
+                  this.isAction = isAction;
+                  this.useFlowHandler = useFlowHandler;
+                  this.resultMappings = resultMappings;
+                  this.screen = screen;
+              }
+    stack_metadata:
+      framework: J2EE servlet
+      configuration: XML-based mappings
+
+  - record_key: admin-operations-entity-0001
+    kind: entity
+    capability_key: admin-operations
+    requirement: >
+      The system SHALL maintain a URLMapping entity with attributes for URL
+      pattern, screen name, action class name, flow handler class name, and
+      result screen mappings to support flexible request routing.
+    confidence: high
+    confidence_basis: >
+      URLMapping class structure is explicit and unchanging across all passes.
+      Constructor signatures and accessor methods are clearly defined.
+    risk_class: operational
+    basis: >
+      URLMapping is a data transfer object with eight attributes: url, isAction flag,
+      useFlowHandler flag, flowHandler class name, webActionClass name, ejbActionClass name,
+      resultMappings HashMap, and screen name (URLMapping.java lines 42-72).
+    traces:
+      - path: legacy-source/petstore1.3.2/src/waf/src/controller/com/sun/j2ee/blueprints/waf/controller/web/URLMapping.java
+        line_start: 42
+        line_end: 116
+        excerpt: |
+          public class URLMapping implements java.io.Serializable {
+              private String url;
+              private boolean isAction = false;
+              private boolean useFlowHandler = false;
+              private String flowHandler = null;
+              private String webActionClass = null;
+              private String ejbActionClass = null;
+              private HashMap resultMappings;
+              private String screen;
+
+              public URLMapping(String url, String screen) {
+                  this.url = url;
+                  this.screen = screen;
+              }
+
+              public URLMapping(String url,
+                                              String screen,
+                                              boolean isAction,
+                                              boolean useFlowHandler,
+                                              String webActionClass,
+                                              String flowHandler,
+                                              HashMap resultMappings) {
+                  // ... initialization
+              }
+
+              public boolean useFlowHandler() { return useFlowHandler; }
+              public boolean isAction() { return isAction; }
+              public String getWebAction() { return webActionClass; }
+              public String getFlowHandler() { return flowHandler; }
+              public String getScreen() { return screen; }
+              public String getResultScreen(String key) {
+                  if (resultMappings != null) {
+                      return (String)resultMappings.get(key);
+                  } else {
+                      return null;
+                  }
+              }
+    stack_metadata:
+      framework: J2EE servlet
+      data_transfer_object: URLMapping
+
+  - record_key: admin-operations-requirement-0001
+    kind: requirement
+    capability_key: admin-operations
+    requirement: >
+      The system SHALL initialize the MainServlet with a default_locale init
+      parameter parsed from string format (language_country_variant) and applied
+      to each user session at the start of request processing.
+    confidence: high
+    confidence_basis: >
+      Explicit initialization code in MainServlet.init() and consistent use of
+      I18nUtil.getLocaleFromString() across multiple code locations. Default locale
+      configuration defined in web.xml.
+    risk_class: operational
+    basis: >
+      MainServlet retrieves default_locale from ServletConfig (line 80), parses it
+      via I18nUtil.getLocaleFromString() (line 81), and applies it to session
+      attribute WebKeys.LOCALE if not already set (lines 111-113). Default value
+      configured in web.xml as "en_US" (line 59).
+    traces:
+      - path: legacy-source/petstore1.3.2/src/waf/src/docroot/WEB-INF/web.xml
+        line_start: 52
+        line_end: 61
+        excerpt: |
+          <servlet>
+            <servlet-name>webTierEntryPoint</servlet-name>
+            <display-name>MainServlet</display-name>
+            <description>no description</description>
+            <servlet-class>com.sun.j2ee.blueprints.waf.controller.web.MainServlet</servlet-class>
+            <init-param>
+              <param-name>default_locale</param-name>
+              <param-value>en_US</param-value>
+            </init-param>
+          </servlet>
+      - path: legacy-source/petstore1.3.2/src/waf/src/controller/com/sun/j2ee/blueprints/waf/controller/web/MainServlet.java
+        line_start: 79
+        line_end: 82
+        excerpt: |
+          public void init(ServletConfig config) throws ServletException {
+              String defaultLocaleString = config.getInitParameter("default_locale");
+              defaultLocale = I18nUtil.getLocaleFromString(defaultLocaleString);
+    stack_metadata:
+      framework: J2EE servlet configuration
+      parameter: default_locale
+
+  - record_key: admin-operations-workflow-0003
+    kind: workflow
+    capability_key: admin-operations
+    requirement: >
+      The system SHALL process incoming HTTP requests by extracting the URL pattern
+      from the request URI, looking up the corresponding HTMLAction class via URLMapping,
+      invoking the action lifecycle (doStart, perform, doEnd), and if the action
+      returns an Event, looking up the EJB action class name via EventMapping and
+      delegating to the WebController for EJB-tier processing.
+    confidence: high
+    confidence_basis: >
+      RequestProcessor.processRequest() contains the complete and explicit flow.
+      The sequence is deterministic and recoverable from source code alone.
+    risk_class: operational
+    basis: >
+      RequestProcessor.processRequest() extracts URL pattern from request URI
+      (lines 119-125), retrieves URLMapping (line 126), loads HTMLAction class
+      (line 127), invokes action.doStart() (line 130), action.perform() (line 131),
+      and if Event is returned, looks up EventMapping to get EJBActionClassName
+      (lines 135-137), then calls WebController.handleEvent() via ComponentManager
+      (lines 139-141), and finally invokes action.doEnd() with EventResponse
+      (line 143).
+    traces:
+      - path: legacy-source/petstore1.3.2/src/waf/src/controller/com/sun/j2ee/blueprints/waf/controller/web/RequestProcessor.java
+        line_start: 113
+        line_end: 145
+        excerpt: |
+          public void processRequest(HttpServletRequest request) throws HTMLActionException, EventException, ServletException {
+              Event ev = null;
+              String fullURL = request.getRequestURI();
+              String selectedURL = null;
+              int lastPathSeparator = fullURL.lastIndexOf("/") + 1;
+              if (lastPathSeparator != -1) {
+                  selectedURL = fullURL.substring(lastPathSeparator, fullURL.length());
+              }
+              URLMapping urlMapping = getURLMapping(selectedURL);
+              HTMLAction action = getAction(urlMapping);
+              if (action != null) {
+                  action.setServletContext(request.getSession().getServletContext());
+                  action.doStart(request);
+                  ev = action.perform(request);
+                  EventResponse eventResponse = null;
+                  if (ev != null) {
+                      EventMapping eventMapping = getEventMapping(ev);
+                      if (eventMapping != null) {
+                          ev.setEJBActionClassName(eventMapping.getEJBActionClassName());
+                      }
+                      ComponentManager sl = (ComponentManager)request.getSession().getAttribute(WebKeys.COMPONENT_MANAGER);
+                      WebController wcc = sl.getWebController(request.getSession());
+                      eventResponse = wcc.handleEvent(ev, request.getSession());
+                  }
+                  action.doEnd(request, eventResponse);
+              }
+          }
+    stack_metadata:
+      framework: J2EE servlet
+      request_processor: RequestProcessor
+
+  - record_key: admin-operations-requirement-0002
+    kind: requirement
+    capability_key: admin-operations
+    requirement: >
+      The system SHALL process user requests for locale changes by extracting the
+      "locale" request parameter, validating it via I18nUtil.getLocaleFromString(),
+      storing the Locale in the session under attribute LOCALE, and returning a
+      ChangeLocaleEvent to trigger business logic processing.
+    confidence: high
+    confidence_basis: >
+      ChangeLocaleHTMLAction implements the complete flow. The action is discoverable
+      via URL mappings and is the only implementation of locale change.
+    risk_class: operational
+    basis: >
+      ChangeLocaleHTMLAction.perform() extracts parameter "locale" from request
+      (line 73), converts to Locale via I18nUtil.getLocaleFromString() (line 74),
+      stores in session under static LOCALE attribute (lines 78-79), and returns
+      new ChangeLocaleEvent(locale) (line 80). Throws HTMLActionException if locale
+      is invalid (line 82).
+    traces:
+      - path: legacy-source/petstore1.3.2/src/waf/src/controller/com/sun/j2ee/blueprints/waf/controller/web/action/actions/ChangeLocaleHTMLAction.java
+        line_start: 65
+        line_end: 86
+        excerpt: |
+          public final class ChangeLocaleHTMLAction extends HTMLActionSupport {
+              public static final String LOCALE = "com.sun.j2ee.blueprints.waf.LOCALE";
+
+              public Event perform(HttpServletRequest request)
+                  throws HTMLActionException {
+                  String localeString = request.getParameter("locale");
+                  Locale locale = I18nUtil.getLocaleFromString(localeString);
+                  HttpSession session = request.getSession();
+
+                  if (locale != null) {
+                      session.setAttribute(LOCALE,locale);
+                      return new ChangeLocaleEvent(locale);
+                  } else {
+                      throw new HTMLActionException("ChangeLocaleAction: Unable to change language to " + localeString);
+                  }
+              }
+          }
+    stack_metadata:
+      framework: J2EE servlet
+      html_action: ChangeLocaleHTMLAction
+      event_class: ChangeLocaleEvent
+
+  - record_key: admin-operations-entity-0002
+    kind: entity
+    capability_key: admin-operations
+    requirement: >
+      The system SHALL maintain a Locale entity representing user language preferences,
+      stored as a session attribute (key: com.sun.j2ee.blueprints.waf.LOCALE) and
+      initialized from servlet config parameter default_locale.
+    confidence: high
+    confidence_basis: >
+      Locale initialization and session storage is explicit and consistent across
+      MainServlet, ChangeLocaleHTMLAction, and I18nUtil. Locale is a standard
+      Java class with no custom modifications observed.
+    risk_class: operational
+    basis: >
+      Default locale initialized in MainServlet from config parameter (line 80-81)
+      and stored in session (line 112). User locale changes via ChangeLocaleHTMLAction
+      update session attribute (line 79). I18nUtil provides locale string parsing
+      (I18nUtil.java lines 168-196) supporting language_country_variant format.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/waf/src/controller/com/sun/j2ee/blueprints/waf/util/I18nUtil.java
+        line_start: 168
+        line_end: 196
+        excerpt: |
+          public static Locale getLocaleFromString(String localeString) {
+              if (localeString == null) return null;
+              if (localeString.toLowerCase().equals("default")) return Locale.getDefault();
+              int languageIndex = localeString.indexOf('_');
+              if (languageIndex == -1) return null;
+              int countryIndex = localeString.indexOf('_', languageIndex + 1);
+              String country = null;
+              if (countryIndex == -1) {
+                  if (localeString.length() > languageIndex) {
+                      country = localeString.substring(languageIndex + 1, localeString.length());
+                  } else {
+                      return null;
+                  }
+              }
+              int variantIndex = -1;
+              if (countryIndex != -1) countryIndex = localeString.indexOf('_', countryIndex + 1);
+              String language = localeString.substring(0, languageIndex);
+              String variant = null;
+              if (variantIndex != -1) {
+                  variant = localeString.substring(variantIndex + 1, localeString.length());
+              }
+              if (variant != null) {
+                  return new Locale(language, country, variant);
+              } else {
+                  return new Locale(language, country);
+              }
+          }
+    stack_metadata:
+      framework: J2EE session management
+      locale_format: language_country_variant
+
+  - record_key: admin-operations-workflow-0004
+    kind: workflow
+    capability_key: admin-operations
+    requirement: >
+      The system SHALL delegate event processing to an EJB-tier Stateful Session
+      Bean via a synchronized WebController proxy, maintaining thread safety for
+      concurrent requests by serializing access to the stateful EJBControllerLocal.
+    confidence: high
+    confidence_basis: >
+      Synchronization is explicit in DefaultWebController.handleEvent() source code.
+      The reason for synchronization (stateful session bean concurrency) is documented
+      in comments.
+    risk_class: operational
+    basis: >
+      DefaultWebController implements WebController as a synchronized proxy (line 87)
+      that retrieves the stateful EJBControllerLocal from session (line 90) and
+      invokes processEvent() (line 91). Javadoc comments (lines 62-63) state:
+      "All the methods that access the EJB are synchronized so that concurrent
+      requests do not happen to the stateful session bean."
+    traces:
+      - path: legacy-source/petstore1.3.2/src/waf/src/controller/web/DefaultWebController.java
+        line_start: 59
+        line_end: 109
+        excerpt: |
+          /**
+           * This class is essentially just a proxy object that calls methods on the
+           * EJB tier using the com.sun.j2ee.blueprints.waf.controller.ejb.ShoppingClientControllerEJB
+           * object. All the methods that access the EJB are synchronized so
+           * that concurrent requests do not happen to the stateful session bean.
+           */
+          public class DefaultWebController implements WebController {
+
+              public synchronized EventResponse handleEvent(Event ev, HttpSession session)
+                  throws EventException {
+                      DefaultComponentManager cm = (DefaultComponentManager)session.getAttribute(WebKeys.COMPONENT_MANAGER);
+                      EJBControllerLocal controllerEJB = cm.getEJBController(session);
+                      return controllerEJB.processEvent(ev);
+              }
+
+              public synchronized void destroy(HttpSession session) {
+                  DefaultComponentManager cm = (DefaultComponentManager)session.getAttribute(WebKeys.COMPONENT_MANAGER);
+                  EJBControllerLocal controllerEJB = cm.getEJBController(session);
+                  try {
+                      controllerEJB.remove();
+                  } catch(RemoveException re) {
+                      Debug.print(re);
+                  }
+              }
+          }
+    stack_metadata:
+      framework: J2EE session beans
+      ejb.bean: EJBControllerLocal
+      ejb.transaction: Required
+      web_controller: DefaultWebController
+
+  - record_key: admin-operations-entity-0003
+    kind: entity
+    capability_key: admin-operations
+    requirement: >
+      The system SHALL maintain an EJBControllerLocal Stateful Session Bean that
+      receives Events from the web tier, delegates to a StateMachine for action
+      dispatching, and returns EventResponse objects.
+    confidence: high
+    confidence_basis: >
+      EJBControllerLocalEJB class definition and ejb-jar.xml configuration are
+      explicit and unambiguous.
+    risk_class: operational
+    basis: >
+      EJBControllerLocalEJB implements SessionBean interface (line 53), initializes
+      a StateMachine in ejbCreate() (lines 61-63), delegates processEvent() to
+      StateMachine.processEvent() (lines 67-70), and nulls StateMachine in
+      ejbRemove() (lines 76-78). EJB configuration declares it as Stateful
+      with container-managed transactions (ejb-jar.xml lines 56-57).
+    traces:
+      - path: legacy-source/petstore1.3.2/src/waf/src/controller/com/sun/j2ee/blueprints/waf/controller/ejb/EJBControllerLocalEJB.java
+        line_start: 53
+        line_end: 84
+        excerpt: |
+          public class EJBControllerLocalEJB implements SessionBean {
+              protected StateMachine sm;
+              protected SessionContext sc;
+
+              public EJBControllerLocalEJB() {}
+
+              public void ejbCreate() {
+                  sm = new StateMachine(this, sc);
+              }
+
+              public EventResponse processEvent(Event ev)
+                  throws EventException {
+                      return (sm.processEvent(ev));
+              }
+
+              public void setSessionContext(SessionContext sc) {
+                  this.sc = sc;
+              }
+
+              public void ejbRemove() {
+                  sm = null;
+              }
+
+              public void ejbActivate() {}
+              public void ejbPassivate() {}
+          }
+      - path: legacy-source/petstore1.3.2/src/waf/src/ejb-jar.xml
+        line_start: 50
+        line_end: 75
+        excerpt: |
+          <enterprise-beans>
+            <session>
+              <display-name>EJBController</display-name>
+              <ejb-name>EJBController</ejb-name>
+              <local-home>com.sun.j2ee.blueprints.waf.controller.ejb.EJBControllerLocalHome</local-home>
+              <local>com.sun.j2ee.blueprints.waf.controller.ejb.EJBControllerLocal</local>
+              <ejb-class>com.sun.j2ee.blueprints.waf.controller.ejb.EJBControllerLocalEJB</ejb-class>
+              <session-type>Stateful</session-type>
+              <transaction-type>Container</transaction-type>
+            </session>
+          </enterprise-beans>
+
+          <assembly-descriptor>
+            <container-transaction>
+              <method>
+                <ejb-name>EJBController</ejb-name>
+                <method-intf>Local</method-intf>
+                <method-name>processEvent</method-name>
+                <method-params>
+                  <method-param>com.sun.j2ee.blueprints.waf.event.Event</method-param>
+                </method-params>
+              </method>
+              <trans-attribute>Required</trans-attribute>
+            </container-transaction>
+          </assembly-descriptor>
+    stack_metadata:
+      framework: J2EE EJB
+      ejb.bean: EJBControllerLocal
+      session_type: Stateful
+      ejb.transaction: Required
+
+  - record_key: admin-operations-workflow-0005
+    kind: workflow
+    capability_key: admin-operations
+    requirement: >
+      The system SHALL dispatch Events to EJB action handlers via a StateMachine
+      that dynamically loads EJBAction classes by name, caches loaded instances,
+      invokes action lifecycle methods (doStart, perform, doEnd), maintains an
+      attribute map for state storage, and returns EventResponse objects.
+    confidence: high
+    confidence_basis: >
+      StateMachine.processEvent() explicitly implements this pattern. Dynamic class
+      loading, caching, and lifecycle are all visible in source.
+    risk_class: operational
+    basis: >
+      StateMachine.processEvent() receives Event with EJBActionClassName (line 93),
+      checks actionMap cache (line 98), loads class if not cached (line 101),
+      instantiates class (line 101), caches instance (line 102), invokes action.init()
+      (line 108), action.doStart() (line 110), action.perform(ev) (line 111),
+      and action.doEnd() (line 112), returning EventResponse (line 115). State
+      persists via setAttribute/getAttribute methods (lines 118-124).
+    traces:
+      - path: legacy-source/petstore1.3.2/src/waf/src/controller/com/sun/j2ee/blueprints/waf/controller/ejb/StateMachine.java
+        line_start: 78
+        line_end: 133
+        excerpt: |
+          public class StateMachine implements java.io.Serializable {
+              private EJBControllerLocalEJB ccejb;
+              private HashMap attributeMap;
+              private HashMap actionMap;
+              private SessionContext sc;
+
+              public StateMachine(EJBControllerLocalEJB ccejb, SessionContext sc) {
+                  this.ccejb = ccejb;
+                  this.sc = sc;
+                  attributeMap = new HashMap();
+                  actionMap = new HashMap();
+              }
+
+              public EventResponse processEvent(Event ev) throws EventException {
+                  String actionName = ev.getEJBActionClassName();
+                  EventResponse response = null;
+                  if (actionName != null) {
+                      EJBAction action = null;
+                      try {
+                          if (actionMap.get(actionName) != null) {
+                              action = (EJBAction)actionMap.get(actionName);
+                          } else {
+                              action = (EJBAction)Class.forName(actionName).newInstance();
+                              actionMap.put(actionName, action);
+                          }
+                      } catch (Exception ex) {
+                          System.err.println("StateMachine: error loading " + actionName + " :" + ex);
+                      }
+                      if (action != null) {
+                          action.init(this);
+                          action.doStart();
+                          response = action.perform(ev);
+                          action.doEnd();
+                      }
+                  }
+                  return response;
+              }
+
+              public void setAttribute(String key, Object value) {
+                  attributeMap.put(key, value);
+              }
+
+              public Object getAttribute(String key) {
+                  return attributeMap.get(key);
+              }
+          }
+    stack_metadata:
+      framework: J2EE EJB
+      state_machine: StateMachine
+      dynamic_action_loading: Class.forName()
+
+  - record_key: admin-operations-workflow-0006
+    kind: workflow
+    capability_key: admin-operations
+    requirement: >
+      The system SHALL handle screen flow and navigation by loading URLMapping
+      configurations at startup, checking for FlowHandler implementations,
+      invoking flow handlers to determine the target screen based on request state,
+      and forwarding requests to the determined screen via request dispatcher.
+    confidence: high
+    confidence_basis: >
+      ScreenFlowManager.forwardToNextScreen() contains the explicit flow logic.
+      FlowHandler interface is used and invoked in the code.
+    risk_class: operational
+    basis: >
+      ScreenFlowManager.forwardToNextScreen() extracts URL pattern (lines 122-128),
+      gets URLMapping (line 130), checks useFlowHandler flag (line 132), either
+      retrieves direct screen (line 133) or instantiates and invokes FlowHandler
+      (lines 136-144), invoking handler lifecycle (doStart, processFlow, doEnd)
+      and looking up result screen via resultMappings (line 144).
+    traces:
+      - path: legacy-source/petstore1.3.2/src/waf/src/controller/com/sun/j2ee/blueprints/waf/controller/web/flow/ScreenFlowManager.java
+        line_start: 119
+        line_end: 150
+        excerpt: |
+          public void forwardToNextScreen(HttpServletRequest request, HttpServletResponse response)
+                    throws java.io.IOException, FlowHandlerException, javax.servlet.ServletException {
+              String fullURL = request.getRequestURI();
+              String selectedURL = defaultScreen;
+              int lastPathSeparator = fullURL.lastIndexOf("/") + 1;
+              if (lastPathSeparator != -1) {
+                  selectedURL = fullURL.substring(lastPathSeparator, fullURL.length());
+              }
+              String currentScreen = "";
+              URLMapping urlMapping = getURLMapping(selectedURL);
+              if (urlMapping != null) {
+                  if (!urlMapping.useFlowHandler()) {
+                      currentScreen = urlMapping.getScreen();
+                  } else {
+                      FlowHandler handler = null;
+                      String flowHandlerString = urlMapping.getFlowHandler();
+                      try {
+                          handler = (FlowHandler)getClass().getClassLoader().loadClass(flowHandlerString).newInstance();
+                          handler.doStart(request);
+                          String flowResult = handler.processFlow(request);
+                          handler.doEnd(request);
+                          currentScreen = urlMapping.getResultScreen(flowResult);
+                          if (currentScreen == null) currentScreen = flowResult;
+                      } catch (Exception ex) {
+                          System.err.println("ScreenFlowManager caught loading handler: " + ex);
+                      }
+                  }
+              }
+    stack_metadata:
+      framework: J2EE servlet
+      screen_flow: ScreenFlowManager
+      flow_handler: FlowHandler
+      dynamic_handler_loading: Class.forName()
+
+  - record_key: admin-operations-entity-0004
+    kind: entity
+    capability_key: admin-operations
+    requirement: >
+      The system SHALL maintain an Event entity with attributes for EJB action
+      class name and event name, implementing java.io.Serializable, and providing
+      getter/setter methods for EJBActionClassName.
+    confidence: high
+    confidence_basis: >
+      Event interface is minimal and explicit. The interface defines exactly
+      three methods with clear contracts.
+    risk_class: operational
+    basis: >
+      Event interface defines methods setEJBActionClassName(), getEJBActionClassName(),
+      and getEventName() (lines 44-52). All events must implement this interface.
+      ChangeLocaleEvent is one concrete implementation.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/waf/src/controller/com/sun/j2ee/blueprints/waf/event/Event.java
+        line_start: 41
+        line_end: 53
+        excerpt: |
+          /**
+           * This interface determines the required methods for an estore event
+           */
+          public interface Event extends java.io.Serializable {
+              /**
+              *   Specifiy a class name of the ejb action used to process this event in the ejb tier.
+              */
+              public void setEJBActionClassName(String ejbActionClassName);
+              public String getEJBActionClassName();
+              public String getEventName();
+          }
+    stack_metadata:
+      framework: J2EE event system
+      entity_type: Event interface
+      serializable: true
+
+  - record_key: admin-operations-requirement-0003
+    kind: requirement
+    capability_key: admin-operations
+    requirement: >
+      The system SHALL configure HTTP session timeout to 30 minutes and apply
+      this timeout uniformly to all user sessions.
+    confidence: medium
+    confidence_basis: >
+      Session timeout is explicitly configured in web.xml but no dynamic
+      reconfiguration or per-user timeout override logic was observed in the code.
+      The 30-minute value appears to be a static configuration.
+    risk_class: operational
+    basis: >
+      Session timeout configured in web.xml session-config element (line 100-102)
+      with session-timeout value of 30 minutes. No runtime override mechanism observed.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/waf/src/docroot/WEB-INF/web.xml
+        line_start: 100
+        line_end: 102
+        excerpt: |
+          <session-config>
+            <session-timeout>30</session-timeout>
+          </session-config>
+    stack_metadata:
+      framework: J2EE servlet
+      timeout_minutes: 30
+
+  - record_key: admin-operations-requirement-0004
+    kind: requirement
+    capability_key: admin-operations
+    requirement: >
+      The system SHALL support custom JSP tag libraries (tag library descriptor)
+      for smart form rendering, including tags for client-state caching, form
+      submission, input fields, checkboxes, select options, and hidden field
+      value management with Base64 encoding for state serialization.
+    confidence: medium
+    confidence_basis: >
+      Tag library descriptor is declared in web.xml mapping *.tld file. Individual
+      tag classes are visible in source tree. Complete tag list is observable
+      from file listing and tld file.
+    risk_class: presentational
+    basis: >
+      Custom tag library URI "waftags" includes tags: client_cache_link (lines 21-81),
+      param (lines 84-100+), FormTag, CheckboxTag, InputTag, OptionTag, ValueTag,
+      CacheTag, ClientStateValueTag, ClientStateTag (visible from class listing).
+      Client state caching tag documentation (lines 26-35) describes Base64 encoding
+      of parameters and request attributes.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/waf/src/docroot/WEB-INF/waftags.tld
+        line_start: 1
+        line_end: 81
+        excerpt: |
+          <?xml version="1.0" encoding="ISO-8859-1" ?>
+          <!DOCTYPE taglib
+           PUBLIC "-//Sun Microsystems, Inc.//DTD JSP Tag Library 1.1//EN"
+           "http://java.sun.com/j2ee/dtds/web-jsptaglibrary_1_1.dtd">
+
+          <taglib>
+            <tlibversion>1.0</tlibversion>
+            <jspversion>1.1</jspversion>
+            <shortname>WafTags</shortname>
+            <uri></uri>
+
+            <info>
+              BluePrints Web Application Framework Tags
+            </info>
+
+            <!-- client cache link tag -->
+            <tag>
+              <name>client_cache_link</name>
+              <tagclass>com.sun.j2ee.blueprints.waf.view.taglibs.smart.ClientStateTag</tagclass>
+              <bodycontent>JSP</bodycontent>
+              <info>
+               This tag caches state in the page and provides a button or
+               image link within a form with the current page parameters
+               and the page request attributes by encoding them as hidden
+               form variables that are serialized using Base 64 Encoded Strings.
+
+               This tag when used along with a front controller such as the
+               one provided in the WAF can utilize a flow handler to forward
+               a request page to a page with the same attributes it recieved
+               when the original request was made.
+              </info>
+    stack_metadata:
+      framework: J2EE JSP
+      tag_library: waftags
+      encoding: Base64
+
+findings: []
