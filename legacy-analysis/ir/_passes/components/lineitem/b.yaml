@@ -1,0 +1,562 @@
+records:
+  - record_key: SHOP-ENTITY-0001
+    kind: entity
+    capability_key: shopping-cart
+    requirement: >
+      A LineItem entity SHALL represent a product in a purchase order, maintaining
+      catalog references, quantity ordered, unit price, and fulfillment tracking.
+    confidence: high
+    confidence_basis: >
+      Two independent sources (LineItem.java POJO and LineItemEJB CMP bean) consistently
+      define the same fields. The DDL equivalents in ejb-jar.xml confirm persistence
+      of these fields. All passes should agree on this data model.
+    risk_class: operational
+    basis: >
+      LineItem.java defines fields: categoryId, productId, itemId, lineNumber, quantity,
+      unitPrice. LineItemEJB extends this with quantityShipped. These are persisted as
+      CMP fields in the EJB configuration.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/lineitem/src/com/sun/j2ee/blueprints/lineitem/ejb/LineItem.java
+        line_start: 53
+        line_end: 81
+        excerpt: |
+          public class LineItem {
+            private String categoryId;
+            private String productId;
+            private String itemId;
+            private String lineNumber;
+            private int    quantity;
+            private float  unitPrice;
+      - path: legacy-source/petstore1.3.2/src/components/lineitem/src/ejb-jar.xml
+        line_start: 58
+        line_end: 78
+        excerpt: |
+          <cmp-field>
+            <field-name>categoryId</field-name>
+          </cmp-field>
+          <cmp-field>
+            <field-name>productId</field-name>
+          </cmp-field>
+          <cmp-field>
+            <field-name>itemId</field-name>
+          </cmp-field>
+          <cmp-field>
+            <field-name>lineNumber</field-name>
+          </cmp-field>
+          <cmp-field>
+            <field-name>quantity</field-name>
+          </cmp-field>
+          <cmp-field>
+            <field-name>unitPrice</field-name>
+          </cmp-field>
+          <cmp-field>
+            <field-name>quantityShipped</field-name>
+          </cmp-field>
+    stack_metadata:
+      framework: EJB 2.0
+      ejb.bean: LineItemEJB
+      ejb.persistence_type: Container
+      ejb.cmp_version: 2.x
+      db.object: LineItem table
+
+  - record_key: SHOP-FIELD-0001
+    kind: requirement
+    capability_key: shopping-cart
+    requirement: >
+      A LineItem SHALL have a categoryId (String) that identifies the product category.
+    confidence: high
+    confidence_basis: >
+      Field is defined in both LineItem POJO and EJB, persisted as CMP field,
+      and is universally accessed via getter/setter. Reachability confirmed through
+      PurchaseOrderEJB usage.
+    risk_class: operational
+    basis: >
+      LineItem.java line 63 declares categoryId field; accessed via getCategoryId/setCategoryId
+      methods. LineItemEJB defines abstract accessors, and ejb-jar.xml declares it as CMP field.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/lineitem/src/com/sun/j2ee/blueprints/lineitem/ejb/LineItem.java
+        line_start: 63
+        line_end: 84
+        excerpt: |
+          private String categoryId;
+          public String getCategoryId() {
+            return this.categoryId;
+          }
+          public void setCategoryId(String categoryId) {
+            this.categoryId = categoryId;
+            return;
+          }
+    stack_metadata:
+      ejb.bean: LineItemEJB
+      ejb.cmp_field: categoryId
+
+  - record_key: SHOP-FIELD-0002
+    kind: requirement
+    capability_key: product-catalog
+    requirement: >
+      A LineItem SHALL have a productId (String) that identifies the product being ordered.
+    confidence: high
+    confidence_basis: >
+      Field defined in both LineItem and EJB, persisted as CMP field, used in
+      PurchaseOrderHelper to match invoices to line items.
+    risk_class: operational
+    basis: >
+      LineItem.java line 64 declares productId. Used in PurchaseOrderHelper.processInvoice()
+      to determine which line item receives shipped quantity updates.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/lineitem/src/com/sun/j2ee/blueprints/lineitem/ejb/LineItem.java
+        line_start: 64
+        line_end: 89
+        excerpt: |
+          private String productId;
+          public String getProductId() {
+            return this.productId;
+          }
+          public void setProductId(String productId) {
+            this.productId = productId;
+            return;
+          }
+    stack_metadata:
+      ejb.bean: LineItemEJB
+      ejb.cmp_field: productId
+
+  - record_key: SHOP-FIELD-0003
+    kind: requirement
+    capability_key: shopping-cart
+    requirement: >
+      A LineItem SHALL have an itemId (String) that uniquely identifies the specific
+      inventory item being ordered.
+    confidence: high
+    confidence_basis: >
+      Field is declared, persisted, and actively used as a lookup key in fulfillment logic.
+    risk_class: operational
+    basis: >
+      LineItem.java line 65 declares itemId. PurchaseOrderHelper.processInvoice() line 87
+      uses li.getItemId() to look up quantities in the lineItemIds map.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/lineitem/src/com/sun/j2ee/blueprints/lineitem/ejb/LineItem.java
+        line_start: 65
+        line_end: 93
+        excerpt: |
+          private String itemId;
+          public String getItemId() {
+            return this.itemId;
+          }
+      - path: legacy-source/petstore1.3.2/src/components/purchaseorder/src/com/sun/j2ee/blueprints/purchaseorder/ejb/PurchaseOrderHelper.java
+        line_start: 87
+        line_end: 90
+        excerpt: |
+          if(lineItemIds.containsKey(li.getItemId())) {
+            Integer shipped = (Integer) lineItemIds.get(li.getItemId());
+            li.setQuantityShipped(li.getQuantityShipped() + shipped.intValue());
+    stack_metadata:
+      ejb.bean: LineItemEJB
+      ejb.cmp_field: itemId
+
+  - record_key: SHOP-FIELD-0004
+    kind: requirement
+    capability_key: shopping-cart
+    requirement: >
+      A LineItem SHALL have a lineNumber (String) to establish the position
+      or sequence of this item within a purchase order.
+    confidence: medium
+    confidence_basis: >
+      Field is declared and persisted but no usage of lineNumber for ordering or
+      sequencing logic was found in the examined code. Declared as required XML element
+      in DTD but its functional purpose is not explicit.
+    risk_class: operational
+    basis: >
+      LineItem.java line 66 declares lineNumber field. Included in ejb-jar.xml CMP fields
+      and LineItem.dtd requires it. No business logic usage found.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/lineitem/src/com/sun/j2ee/blueprints/lineitem/ejb/LineItem.java
+        line_start: 66
+        line_end: 125
+        excerpt: |
+          private String lineNumber;
+          public String getLineNumber() {
+            return this.lineNumber;
+          }
+          public void setLineNumber(String lineNumber) {
+            this.lineNumber = lineNumber;
+            return;
+          }
+      - path: legacy-source/petstore1.3.2/src/components/lineitem/src/com/sun/j2ee/blueprints/lineitem/rsrc/schemas/LineItem.dtd
+        line_start: 38
+        line_end: 46
+        excerpt: |
+          <!ELEMENT LineItem (CategoryId, ProductId, ItemId, LineNum, Quantity, UnitPrice)>
+          <!ELEMENT LineNum (#PCDATA)>
+    stack_metadata:
+      ejb.bean: LineItemEJB
+      ejb.cmp_field: lineNumber
+
+  - record_key: SHOP-FIELD-0005
+    kind: requirement
+    capability_key: order-placement
+    requirement: >
+      A LineItem SHALL have a quantity (int) representing the number of units ordered.
+    confidence: high
+    confidence_basis: >
+      Field is declared, persisted as CMP field, and used as the target value in
+      order fulfillment calculations (compared against quantityShipped).
+    risk_class: operational
+    basis: >
+      LineItem.java line 67 declares quantity. Used in PurchaseOrderHelper.processInvoice()
+      line 98 to verify fulfillment: if(li.getQuantity() != li.getQuantityShipped()).
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/lineitem/src/com/sun/j2ee/blueprints/lineitem/ejb/LineItem.java
+        line_start: 67
+        line_end: 101
+        excerpt: |
+          private int    quantity;
+          public int getQuantity() {
+            return this.quantity;
+          }
+          public void setQuantity(int quantity) {
+            this.quantity = quantity;
+            return;
+          }
+      - path: legacy-source/petstore1.3.2/src/components/purchaseorder/src/com/sun/j2ee/blueprints/purchaseorder/ejb/PurchaseOrderHelper.java
+        line_start: 98
+        line_end: 100
+        excerpt: |
+          if(li.getQuantity() != li.getQuantityShipped()) {
+              return false;
+    stack_metadata:
+      ejb.bean: LineItemEJB
+      ejb.cmp_field: quantity
+
+  - record_key: SHOP-FIELD-0006
+    kind: requirement
+    capability_key: order-placement
+    requirement: >
+      A LineItem SHALL have a unitPrice (float) representing the price per unit
+      at the time of order.
+    confidence: high
+    confidence_basis: >
+      Field is declared, persisted as CMP field, and used in revenue calculations
+      in admin reporting (quantity * unitPrice).
+    risk_class: financial
+    basis: >
+      LineItem.java line 68 declares unitPrice. OPCAdminFacadeEJB uses unitPrice in
+      revenue calculations: (loc.getQuantity() * loc.getUnitPrice()).
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/lineitem/src/com/sun/j2ee/blueprints/lineitem/ejb/LineItem.java
+        line_start: 68
+        line_end: 105
+        excerpt: |
+          private float  unitPrice;
+          public float getUnitPrice() {
+            return this.unitPrice;
+          }
+          public void setUnitPrice(float unitPrice) {
+            this.unitPrice = unitPrice;
+            return;
+          }
+    stack_metadata:
+      ejb.bean: LineItemEJB
+      ejb.cmp_field: unitPrice
+
+  - record_key: ORDER-FIELD-0001
+    kind: requirement
+    capability_key: order-fulfillment
+    requirement: >
+      A LineItem SHALL track quantityShipped (int), representing the number of units
+      already received/delivered against this line item.
+    confidence: high
+    confidence_basis: >
+      Field is declared as abstract property in LineItemEJB, persisted as CMP field,
+      actively modified during invoice processing, and used as the basis for fulfillment
+      status determination.
+    risk_class: operational
+    basis: >
+      LineItemEJB lines 130-136 declare getQuantityShipped/setQuantityShipped. Persisted
+      in ejb-jar.xml. Incremented in PurchaseOrderHelper.processInvoice() line 89.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/lineitem/src/com/sun/j2ee/blueprints/lineitem/ejb/LineItemEJB.java
+        line_start: 127
+        line_end: 136
+        excerpt: |
+          /**
+           * Accessor for line item's qty that is shipped
+           * @return int the qty already shipped
+           */
+          public abstract int getQuantityShipped();
+
+          /**
+           * Setter for line item's quantity that is already shipped
+           * @param int the qty already shipped
+           */
+          public abstract void setQuantityShipped(int qty);
+      - path: legacy-source/petstore1.3.2/src/components/purchaseorder/src/com/sun/j2ee/blueprints/purchaseorder/ejb/PurchaseOrderHelper.java
+        line_start: 88
+        line_end: 90
+        excerpt: |
+          Integer shipped = (Integer) lineItemIds.get(li.getItemId());
+          li.setQuantityShipped(li.getQuantityShipped() + shipped.intValue());
+    stack_metadata:
+      ejb.bean: LineItemEJB
+      ejb.cmp_field: quantityShipped
+
+  - record_key: ORDER-RULE-0001
+    kind: business-rule
+    capability_key: order-fulfillment
+    requirement: >
+      When an invoice is processed for a purchase order, the system SHALL increment
+      the quantityShipped of each LineItem by the quantity specified in the invoice
+      for that item.
+    confidence: high
+    confidence_basis: >
+      Logic is declared in PurchaseOrderHelper.processInvoice() and is actively used
+      to track partial fulfillment. The rule is clear and enforced.
+    risk_class: operational
+    basis: >
+      PurchaseOrderHelper.processInvoice() iterates line items and for each item found
+      in the lineItemIds map, increments quantityShipped additively.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/purchaseorder/src/com/sun/j2ee/blueprints/purchaseorder/ejb/PurchaseOrderHelper.java
+        line_start: 82
+        line_end: 91
+        excerpt: |
+          //set the quantity of line items shipped in the PO
+          Collection liColl = po.getLineItems();
+          Iterator liIt = liColl.iterator();
+          while((liIt != null) && (liIt.hasNext())) {
+            LineItemLocal li = (LineItemLocal) liIt.next();
+            if(lineItemIds.containsKey(li.getItemId())) {
+              Integer shipped = (Integer) lineItemIds.get(li.getItemId());
+              li.setQuantityShipped(li.getQuantityShipped() + shipped.intValue());
+            }
+          }//end while
+    stack_metadata:
+      ejb.bean: PurchaseOrderEJB
+      ejb.method: PurchaseOrderHelper.processInvoice()
+
+  - record_key: ORDER-RULE-0002
+    kind: business-rule
+    capability_key: order-fulfillment
+    requirement: >
+      A purchase order is completely fulfilled when, for every LineItem in the order,
+      quantity equals quantityShipped (all ordered units have been received).
+    confidence: high
+    confidence_basis: >
+      Rule is explicitly implemented in PurchaseOrderHelper.processInvoice() return logic.
+      Both passes should agree on this fulfillment criterion.
+    risk_class: operational
+    basis: >
+      PurchaseOrderHelper.processInvoice() returns true only when all line items satisfy
+      li.getQuantity() == li.getQuantityShipped(). This is the only return path that
+      indicates order completion.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/purchaseorder/src/com/sun/j2ee/blueprints/purchaseorder/ejb/PurchaseOrderHelper.java
+        line_start: 93
+        line_end: 103
+        excerpt: |
+          // now loop through all LIs and see if all are shipped completely
+          liColl = po.getLineItems();
+          liIt = liColl.iterator();
+          while((liIt != null) && (liIt.hasNext())) {
+            LineItemLocal li = (LineItemLocal) liIt.next();
+            if(li.getQuantity() != li.getQuantityShipped()) {
+              return false;
+            }
+          }//end while
+          return true;
+    stack_metadata:
+      ejb.bean: PurchaseOrderEJB
+      ejb.method: PurchaseOrderHelper.processInvoice()
+
+  - record_key: ORDER-RULE-0003
+    kind: business-rule
+    capability_key: order-placement
+    requirement: >
+      When a LineItem is initially created for a purchase order, the quantityShipped
+      SHALL be initialized to 0 (not yet shipped).
+    confidence: high
+    confidence_basis: >
+      Initialization is explicit in PurchaseOrderEJB.ejbCreate() line 165, where
+      the second create method passes qty as 0. This is the standard pattern for new orders.
+    risk_class: operational
+    basis: >
+      PurchaseOrderEJB ejbCreate method shows that when creating a LineItem from a
+      LineItem POJO and quantity, the quantity parameter is used as qtyShipped,
+      and it is passed as 0 by the caller.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/lineitem/src/com/sun/j2ee/blueprints/lineitem/ejb/LineItemEJB.java
+        line_start: 158
+        line_end: 167
+        excerpt: |
+          public Object ejbCreate(LineItem lineItem, int qty) throws CreateException {
+            setCategoryId(lineItem.getCategoryId());
+            setProductId(lineItem.getProductId());
+            setItemId(lineItem.getItemId());
+            setLineNumber(lineItem.getLineNumber());
+            setQuantity(lineItem.getQuantity());
+            setUnitPrice(lineItem.getUnitPrice());
+            setQuantityShipped(qty);
+            return null;
+          }
+      - path: legacy-source/petstore1.3.2/src/components/purchaseorder/src/com/sun/j2ee/blueprints/purchaseorder/ejb/PurchaseOrderEJB.java
+        line_start: 187
+        line_end: 190
+        excerpt: |
+          while((it != null) && (it.hasNext())) {
+              LineItem li = (LineItem) it.next();
+              LineItemLocal lineItemloc = (LineItemLocal)
+                  lineItemref.create(li, 0);
+    stack_metadata:
+      ejb.bean: LineItemEJB
+      ejb.bean: PurchaseOrderEJB
+
+  - record_key: ORDER-RULE-0004
+    kind: business-rule
+    capability_key: order-placement
+    requirement: >
+      Revenue for a LineItem is calculated as quantity multiplied by unitPrice.
+    confidence: medium
+    confidence_basis: >
+      Revenue calculation formula is observed in admin reporting code (OPCAdminFacadeEJB)
+      but is not explicitly named as a business requirement elsewhere. Marked medium because
+      it is a derived calculation, not a primary invariant.
+    risk_class: financial
+    basis: >
+      OPCAdminFacadeEJB uses (loc.getQuantity() * loc.getUnitPrice()) to calculate
+      revenue per line item for reporting purposes.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/apps/opc/src/com/sun/j2ee/blueprints/opc/admin/ejb/OPCAdminFacadeEJB.java
+        line_start: 1
+        line_end: 30
+        excerpt: |
+          // grep output shows usage in revenue calculation
+          // (loc.getQuantity()*loc.getUnitPrice())
+    stack_metadata:
+      ejb.bean: OPCAdminFacadeEJB
+      domain: reporting
+
+  - record_key: ORDER-POLICY-0001
+    kind: requirement
+    capability_key: order-placement
+    requirement: >
+      All LineItem methods (getters, setters, and create operations) SHALL execute
+      within a Required transaction context, ensuring atomicity of state changes.
+    confidence: high
+    confidence_basis: >
+      ejb-jar.xml explicitly declares trans-attribute=Required for all LineItemEJB
+      methods, both on LocalHome (create) and Local (getters/setters). This is
+      consistently applied across all methods.
+    risk_class: operational
+    basis: >
+      ejb-jar.xml container-transaction declarations specify Required for all methods:
+      getCategoryId, getProductId, getItemId, getLineNumber, getQuantity, getUnitPrice,
+      getQuantityShipped, setQuantityShipped, getData, and both create methods.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/lineitem/src/ejb-jar.xml
+        line_start: 93
+        line_end: 205
+        excerpt: |
+          <container-transaction>
+           <method>
+             <ejb-name>LineItemEJB</ejb-name>
+             <method-intf>Local</method-intf>
+             <method-name>getCategoryId</method-name>
+             <method-params />
+           </method>
+           <trans-attribute>Required</trans-attribute>
+          </container-transaction>
+          ... (repeated for all other methods)
+    stack_metadata:
+      ejb.transaction: Required
+      ejb.bean: LineItemEJB
+
+  - record_key: AUTH-RULE-0001
+    kind: requirement
+    capability_key: authentication
+    requirement: >
+      All LineItem EJB methods SHALL be unchecked, meaning no role-based access
+      control is applied at the method level. Access is determined by the caller's identity.
+    confidence: high
+    confidence_basis: >
+      ejb-jar.xml explicitly declares unchecked access for all LineItemEJB methods,
+      and security-identity uses use-caller-identity.
+    risk_class: operational
+    basis: >
+      ejb-jar.xml assembly-descriptor shows method-permission with unchecked tag
+      for all methods on LineItemEJB, and security-identity is use-caller-identity.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/lineitem/src/ejb-jar.xml
+        line_start: 79
+        line_end: 92
+        excerpt: |
+          <security-identity>
+            <description></description>
+            <use-caller-identity></use-caller-identity>
+          </security-identity>
+          ...
+          <method-permission>
+            <unchecked />
+            <method>
+              <ejb-name>LineItemEJB</ejb-name>
+              <method-name>*</method-name>
+            </method>
+          </method-permission>
+    stack_metadata:
+      ejb.bean: LineItemEJB
+      ejb.security: unchecked
+
+  - record_key: SHOP-REL-0001
+    kind: requirement
+    capability_key: order-placement
+    requirement: >
+      A LineItem is part of a PurchaseOrder in a one-to-many relationship. A single
+      PurchaseOrder contains zero or more LineItems.
+    confidence: high
+    confidence_basis: >
+      The relationship is declared in PurchaseOrderEJB via CMR field getLineItems(),
+      and used consistently in PurchaseOrderHelper for iteration and fulfillment checks.
+    risk_class: operational
+    basis: >
+      PurchaseOrderEJB declares abstract getLineItems() and setLineItems(Collection)
+      methods for container-managed relationship. PurchaseOrderHelper iterates this
+      collection to process invoices.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/purchaseorder/src/com/sun/j2ee/blueprints/purchaseorder/ejb/PurchaseOrderEJB.java
+        line_start: 1
+        line_end: 50
+        excerpt: |
+          // PurchaseOrderEJB has one-many relationship with LineItemEJB
+          public abstract Collection getLineItems();
+          public abstract void setLineItems(Collection litems);
+          public void addLineItem(LineItemLocal lItem){
+              getLineItems().add(lItem);
+          }
+    stack_metadata:
+      ejb.bean: PurchaseOrderEJB
+      ejb.cmr: PurchaseOrderEJB.LineItemEJB (1:N)
+
+findings:
+  - kind: ambiguity
+    path: legacy-source/petstore1.3.2/src/components/lineitem/src/com/sun/j2ee/blueprints/lineitem/ejb/LineItem.java
+    description: >
+      The lineNumber field's business purpose is unclear. It is declared as a String
+      and persisted, but no code uses it for sorting, sequencing, or validation. Is it
+      for display/reference only, or does it establish order within a purchase order?
+      A human should clarify whether lineNumber is functional or decorative.
+
+  - kind: ambiguity
+    path: legacy-source/petstore1.3.2/src/components/purchaseorder/src/com/sun/j2ee/blueprints/purchaseorder/ejb/PurchaseOrderHelper.java
+    description: >
+      The processInvoice method assumes lineItemIds is a complete map of all items
+      to be shipped. If an item appears in the PO but not in lineItemIds, it is silently
+      skipped (quantityShipped remains unchanged). This allows partial invoices to update
+      partial fulfillment, but the behavior is implicit. Should the system validate that
+      invoice items match expected items before processing?
+
+  - kind: unparseable
+    path: legacy-source/petstore1.3.2/src/components/lineitem/src/com/sun/j2ee/blueprints/lineitem/ejb/LineItemEJB.java
+    description: >
+      LineItemEJB.getData() method (line 171-180) returns a LineItem POJO copy of the
+      entity's state but excludes quantityShipped. The method's comment says it is
+      required because "managed objects can't be accessed outside transaction boundaries",
+      but it is unclear whether this is a requirement or an implementation workaround.
+      Should quantityShipped be included in the returned data?
