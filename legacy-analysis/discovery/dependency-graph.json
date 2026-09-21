@@ -1,0 +1,352 @@
+{
+  "metadata": {
+    "application": "PetStore J2EE v1.3.2",
+    "analysis_date": "2026-09-21",
+    "dependency_type": "EJB and Component References",
+    "note": "Directed graph showing component dependencies. Arrows indicate 'depends on' relationships."
+  },
+  "nodes": {
+    "apps/petstore": {
+      "type": "application",
+      "description": "Main consumer e-commerce web application",
+      "layer": "presentation"
+    },
+    "apps/admin": {
+      "type": "application",
+      "description": "Administrative backend interface",
+      "layer": "presentation"
+    },
+    "apps/opc": {
+      "type": "application",
+      "description": "Order Processing Center",
+      "layer": "presentation"
+    },
+    "apps/supplier": {
+      "type": "application",
+      "description": "Supplier/partner portal",
+      "layer": "presentation"
+    },
+    "waf": {
+      "type": "framework",
+      "description": "Web Application Framework (shared infrastructure)",
+      "layer": "presentation"
+    },
+    "components/catalog": {
+      "type": "session_bean",
+      "description": "Product catalog master data",
+      "layer": "business"
+    },
+    "components/cart": {
+      "type": "session_bean",
+      "description": "Shopping cart state management",
+      "layer": "business"
+    },
+    "components/signon": {
+      "type": "session_bean",
+      "description": "Authentication and user management",
+      "layer": "business"
+    },
+    "components/customer": {
+      "type": "session_bean",
+      "description": "Customer profile and account management",
+      "layer": "business"
+    },
+    "components/purchaseorder": {
+      "type": "session_bean",
+      "description": "Order creation and validation",
+      "layer": "business"
+    },
+    "components/processmanager": {
+      "type": "session_bean",
+      "description": "Order workflow state machine",
+      "layer": "business"
+    },
+    "components/supplierpo": {
+      "type": "session_bean",
+      "description": "Supplier purchase order handling",
+      "layer": "business"
+    },
+    "components/uidgen": {
+      "type": "session_bean",
+      "description": "Unique ID generation service",
+      "layer": "business"
+    },
+    "components/asyncsender": {
+      "type": "session_bean",
+      "description": "Asynchronous message delivery",
+      "layer": "business"
+    },
+    "components/mailer": {
+      "type": "session_bean",
+      "description": "Email notification service",
+      "layer": "business"
+    },
+    "components/servicelocator": {
+      "type": "utility",
+      "description": "JNDI service locator pattern",
+      "layer": "business"
+    },
+    "components/xmldocuments": {
+      "type": "utility",
+      "description": "XML document handling",
+      "layer": "business"
+    },
+    "components/contactinfo": {
+      "type": "entity_bean",
+      "description": "Contact information storage",
+      "layer": "data"
+    },
+    "components/address": {
+      "type": "entity_bean",
+      "description": "Address data storage",
+      "layer": "data"
+    },
+    "components/creditcard": {
+      "type": "entity_bean",
+      "description": "Credit card payment methods",
+      "layer": "data"
+    },
+    "components/lineitem": {
+      "type": "entity_bean",
+      "description": "Order line items",
+      "layer": "data"
+    }
+  },
+  "edges": [
+    {
+      "source": "apps/petstore",
+      "target": "waf",
+      "type": "uses",
+      "label": "Front controller, template servlet"
+    },
+    {
+      "source": "apps/petstore",
+      "target": "components/catalog",
+      "type": "uses",
+      "label": "Browse products, categories"
+    },
+    {
+      "source": "apps/petstore",
+      "target": "components/cart",
+      "type": "uses",
+      "label": "Shopping cart operations"
+    },
+    {
+      "source": "apps/petstore",
+      "target": "components/purchaseorder",
+      "type": "uses",
+      "label": "Order checkout and creation"
+    },
+    {
+      "source": "apps/petstore",
+      "target": "components/signon",
+      "type": "uses",
+      "label": "User authentication"
+    },
+    {
+      "source": "apps/petstore",
+      "target": "components/customer",
+      "type": "uses",
+      "label": "Customer profile management"
+    },
+    {
+      "source": "apps/petstore",
+      "target": "components/uidgen",
+      "type": "uses",
+      "label": "Generate unique IDs for orders"
+    },
+    {
+      "source": "apps/petstore",
+      "target": "components/asyncsender",
+      "type": "uses",
+      "label": "Asynchronous event delivery"
+    },
+    {
+      "source": "apps/supplier",
+      "target": "waf",
+      "type": "uses",
+      "label": "Web application framework"
+    },
+    {
+      "source": "apps/supplier",
+      "target": "components/supplierpo",
+      "type": "uses",
+      "label": "Supplier order management"
+    },
+    {
+      "source": "apps/supplier",
+      "target": "components/contactinfo",
+      "type": "uses",
+      "label": "Contact information"
+    },
+    {
+      "source": "apps/admin",
+      "target": "waf",
+      "type": "uses",
+      "label": "Web application framework"
+    },
+    {
+      "source": "apps/opc",
+      "target": "waf",
+      "type": "uses",
+      "label": "Web application framework"
+    },
+    {
+      "source": "components/cart",
+      "target": "components/catalog",
+      "type": "uses",
+      "label": "Lookup product details"
+    },
+    {
+      "source": "components/purchaseorder",
+      "target": "components/contactinfo",
+      "type": "uses",
+      "label": "Order shipping/billing contact"
+    },
+    {
+      "source": "components/purchaseorder",
+      "target": "components/address",
+      "type": "uses",
+      "label": "Order address validation"
+    },
+    {
+      "source": "components/purchaseorder",
+      "target": "components/creditcard",
+      "type": "uses",
+      "label": "Payment card verification"
+    },
+    {
+      "source": "components/purchaseorder",
+      "target": "components/lineitem",
+      "type": "uses",
+      "label": "Line item management"
+    },
+    {
+      "source": "components/supplierpo",
+      "target": "components/contactinfo",
+      "type": "uses",
+      "label": "Supplier contact information"
+    },
+    {
+      "source": "components/supplierpo",
+      "target": "components/address",
+      "type": "uses",
+      "label": "Supplier address management"
+    },
+    {
+      "source": "components/supplierpo",
+      "target": "components/lineitem",
+      "type": "uses",
+      "label": "PO line items"
+    },
+    {
+      "source": "components/contactinfo",
+      "target": "components/address",
+      "type": "uses",
+      "label": "Address lookup"
+    },
+    {
+      "source": "components/signon",
+      "target": "components/servicelocator",
+      "type": "uses",
+      "label": "EJB lookup pattern"
+    },
+    {
+      "source": "components/processmanager",
+      "target": "components/purchaseorder",
+      "type": "uses",
+      "label": "Order state management"
+    },
+    {
+      "source": "components/processmanager",
+      "target": "components/customer",
+      "type": "uses",
+      "label": "Customer context"
+    },
+    {
+      "source": "components/uidgen",
+      "target": "components/servicelocator",
+      "type": "uses",
+      "label": "Service lookup"
+    }
+  ],
+  "layers": {
+    "presentation": ["apps/petstore", "apps/admin", "apps/opc", "apps/supplier", "waf"],
+    "business": [
+      "components/catalog",
+      "components/cart",
+      "components/signon",
+      "components/customer",
+      "components/purchaseorder",
+      "components/processmanager",
+      "components/supplierpo",
+      "components/uidgen",
+      "components/asyncsender",
+      "components/mailer",
+      "components/servicelocator",
+      "components/xmldocuments"
+    ],
+    "data": [
+      "components/contactinfo",
+      "components/address",
+      "components/creditcard",
+      "components/lineitem"
+    ]
+  },
+  "critical_paths": [
+    {
+      "name": "Shopping Flow",
+      "path": [
+        "apps/petstore",
+        "components/catalog",
+        "components/cart",
+        "components/purchaseorder"
+      ],
+      "description": "Core e-commerce flow from browsing to checkout"
+    },
+    {
+      "name": "Authentication Flow",
+      "path": ["apps/petstore", "components/signon"],
+      "description": "User login and session management"
+    },
+    {
+      "name": "Order Processing Flow",
+      "path": ["components/purchaseorder", "components/processmanager", "components/asyncsender"],
+      "description": "Order state transitions and async notifications"
+    },
+    {
+      "name": "Supplier Portal Flow",
+      "path": ["apps/supplier", "components/supplierpo", "components/lineitem"],
+      "description": "Supplier-facing purchase order management"
+    }
+  ],
+  "high_coupling_areas": [
+    {
+      "modules": [
+        "components/purchaseorder",
+        "components/contactinfo",
+        "components/address",
+        "components/creditcard"
+      ],
+      "concern": "Order fulfillment highly coupled to entity beans; validation and business logic intertwined"
+    },
+    {
+      "modules": ["apps/petstore", "waf", "components/cart", "components/catalog"],
+      "concern": "Web tier tightly coupled to WAF; service locator dependency chain"
+    }
+  ],
+  "dependency_analysis": {
+    "fan_in": {
+      "components/catalog": 2,
+      "components/address": 3,
+      "components/contactinfo": 2,
+      "waf": 4
+    },
+    "fan_out": {
+      "apps/petstore": 8,
+      "components/purchaseorder": 4,
+      "components/supplierpo": 3
+    },
+    "circular_dependencies": []
+  }
+}

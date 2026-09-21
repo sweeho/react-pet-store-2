@@ -1,0 +1,11 @@
+capability_key,name,summary
+product-catalog,Product Catalog,Product master data management, category hierarchy, search, and fast-lane read access patterns
+shopping-cart,Shopping Cart,Shopping cart state management, item addition/removal, quantity tracking, and persistence
+order-placement,Order Placement,Order creation, validation, line-item assembly, and checkout workflow
+payment-processing,Payment Processing,Credit card storage, validation, and transaction processing for orders
+customer-management,Customer Management,Customer account creation, profile data, contact information, and preferences
+authentication,Authentication & Authorization,User login, session management, role-based access control, and sign-on
+order-fulfillment,Order Fulfillment,Order state machine, processing workflows, supplier coordination, and tracking
+supplier-management,Supplier Management,Supplier portal, PO management, inventory coordination, and B2B workflows
+notifications,Notifications & Messaging,Email alerts, asynchronous message delivery, and event notification
+admin-operations,Admin Operations,System administration interface, catalog management, and operational controls
