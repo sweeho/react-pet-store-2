@@ -1,121 +1,137 @@
 ## ADDED Requirements
 
-### Requirement: Asynchronous message-driven email processing
+### Requirement: Asynchronous email reception via JMS
 
-The system SHALL receive email notifications asynchronously via a message-driven bean that listens to a JMS Queue for incoming mail messages. Each TextMessage arriving on the queue SHALL be processed by invoking onMessage().
+The system SHALL receive email notifications asynchronously via a message-driven bean that listens to a JMS Queue for incoming mail TextMessage objects.
 
-#### Scenario: Email message arrives on queue
+#### Scenario: Email message received from JMS queue
 
-- **GIVEN** a TextMessage on the mailer JMS queue
-- **WHEN** the MailerMDB receives the message
-- **THEN** the onMessage() method processes the message within a container-managed transaction
-
-### Requirement: XML-based email message format
-
-When a TextMessage arrives on the mailer queue, the system SHALL parse the message text as XML, deserialize it into a Mail object containing address, subject, and content, and send an email to the specified address.
-
-#### Scenario: Valid XML email message is processed
-
-- **GIVEN** a TextMessage containing valid Mail XML (Address, Subject, Content)
-- **WHEN** MailerMDB.onMessage() receives the message
-- **THEN** the XML is parsed and deserialized, and an email is sent to the recipient
-
-### Requirement: Mail Session resource configuration
-
-The system SHALL send email using the J2EE Mail Session resource looked up from JNDI at "java:comp/env/mail/MailSession".
-
-#### Scenario: Mail Session is retrieved from JNDI
-
-- **GIVEN** MailerMDB processing an email message
-- **WHEN** sendMail() is invoked
-- **THEN** MailHelper performs JNDI lookup of "java:comp/env/mail/MailSession" to obtain the configured Session
-
-### Requirement: Email content type specification
-
-Email messages SHALL be sent with HTML content type ("text/html").
-
-#### Scenario: Email is sent as HTML
-
-- **GIVEN** an email message with content
-- **WHEN** the message is wrapped in a MIME message
-- **THEN** the content is attached with contentType "text/html"
-
-### Requirement: Email content encoding
-
-Email message content SHALL be encoded as UTF-8 before being wrapped in a MIME message.
-
-#### Scenario: Message content is UTF-8 encoded
-
-- **GIVEN** an email with arbitrary text content
-- **WHEN** the content is converted to a byte array
-- **THEN** UTF-8 encoding is used
-
-### Requirement: Mail transmission error handling
-
-When the Mail Session is unavailable or an error occurs during email transmission, a MailerAppException SHALL be caught and silently ignored, allowing processing to continue.
-
-#### Scenario: Mail transmission fails silently
-
-- **GIVEN** a Mail Session that is unavailable or an error during transmission
-- **WHEN** MailerMDB.onMessage() processes the message
-- **THEN** the MailerAppException is caught and processing continues
-
-### Requirement: XML and JMS error handling
-
-XML parsing errors (XMLDocumentException) and JMS errors (JMSException) SHALL be wrapped in an EJBException and thrown, causing message processing to fail and the message to be redelivered.
-
-#### Scenario: Malformed XML causes message redelivery
-
-- **GIVEN** a TextMessage containing invalid XML
-- **WHEN** Mail.fromXML() parses the message
-- **THEN** an XMLDocumentException is caught and wrapped in an EJBException, and the message is redelivered
-
-### Requirement: Transaction boundaries for message processing
-
-The onMessage() method of MailerMDB SHALL execute with EJB transaction attribute "Required", meaning each message processing MUST run within a container-managed transaction.
-
-#### Scenario: Message processing executes in transaction
-
-- **GIVEN** a message on the mailer queue
-- **WHEN** onMessage() is invoked
-- **THEN** the container ensures execution within a Required transaction context
+- **GIVEN** a MailerMDB message-driven bean listening to a JMS queue destination
+- **WHEN** a TextMessage arrives on the mailer queue
+- **THEN** the MailerMDB onMessage() method is invoked to process the message
 
 ### Requirement: Mail entity structure
 
-A Mail entity contains three required fields: address (email recipient), subject (email subject line), and content (email body text). These fields are enforced by the Mail DTD schema.
+The system SHALL support Mail entity objects that contain exactly three required fields: address (email recipient address), subject (email subject line), and content (email body text), in that order. Each field SHALL be a string.
 
-#### Scenario: Mail object is created from XML
+#### Scenario: Mail entity is created with required fields
 
-- **GIVEN** XML containing Address, Subject, and Content elements
-- **WHEN** Mail.fromXML() deserializes the XML
-- **THEN** a Mail object is created with all three fields populated
+- **GIVEN** a Mail object with address "user@example.com", subject "Order Confirmation", and content "Your order has been placed"
+- **WHEN** the Mail object is constructed with these three fields
+- **THEN** all three fields are persisted and accessible via getAddress(), getSubject(), getContent() methods
+
+### Requirement: XML deserialization with DTD validation
+
+The system SHALL deserialize email message XML into a Mail object by parsing the XML against a Mail DTD schema. The XML structure SHALL be validated; schema-invalid XML SHALL cause an XMLDocumentException.
+
+#### Scenario: Valid Mail XML is deserialized
+
+- **GIVEN** an XML string with structure `<Mail><Address>addr</Address><Subject>subj</Subject><Content>body</Content></Mail>`
+- **WHEN** Mail.fromXML(xmlString) is called
+- **THEN** a Mail object is returned with address, subject, and content extracted from XML elements
+
+#### Scenario: Invalid Mail XML fails validation
+
+- **GIVEN** an XML string missing the required Content element
+- **WHEN** Mail.fromXML(xmlString) is called
+- **THEN** an XMLDocumentException is thrown and no Mail object is created
+
+### Requirement: Email sending via JavaMail Session
+
+The system SHALL send email using the J2EE Mail Session resource looked up from JNDI at "java:comp/env/mail/MailSession". Email transmission SHALL use the SMTP transport configured in the Mail Session.
+
+#### Scenario: Email is sent using JNDI Mail Session
+
+- **GIVEN** a Mail entity with valid recipient address and content
+- **WHEN** sendMail() is invoked with address, subject, content, and locale
+- **THEN** the system looks up the Mail Session from JNDI and sends the message via JavaMail Transport.send()
+
+### Requirement: Email content encoding
+
+The system SHALL encode email message content as UTF-8 bytes before attaching to the MIME message. Email messages SHALL include a MIME content type of "text/html".
+
+#### Scenario: Email content is UTF-8 encoded with HTML type
+
+- **GIVEN** email content "Café Français" (with Unicode characters)
+- **WHEN** sendMail() prepares the message for transmission
+- **THEN** the content is encoded as UTF-8 bytes and attached to the MimeMessage with DataHandler using "text/html" content type
 
 ### Requirement: Email headers
 
-Email messages SHALL include a sent-date header with the current system date and time, and a custom X-Mailer header identifying the sender as "JavaMailer".
+The system SHALL include an "X-Mailer" header set to "JavaMailer" and a "Sent-Date" header set to the current system date and time in every outgoing email message.
 
-#### Scenario: Email headers are set
+#### Scenario: Email headers are set on outgoing message
 
-- **GIVEN** an email message being constructed
-- **WHEN** MailHelper.createAndSendMail() builds the message
-- **THEN** the sent-date header is set to the current date/time and X-Mailer="JavaMailer" is added
+- **GIVEN** an outgoing email message
+- **WHEN** sendMail() prepares the MimeMessage before transmission
+- **THEN** msg.setHeader("X-Mailer", "JavaMailer") and msg.setSentDate(new Date()) are called
 
 ### Requirement: Email recipient address parsing
 
-Email recipient addresses SHALL be parsed using JavaMail's InternetAddress.parse() method with strict=false, allowing non-standard addresses to be accepted without validation.
+The system SHALL parse email recipient addresses using JavaMail's InternetAddress.parse() method with strict=false, allowing non-RFC-compliant addresses to be accepted without format validation.
 
-#### Scenario: Non-standard email address is parsed
+#### Scenario: Non-RFC-compliant address is accepted
 
-- **GIVEN** an email recipient address that doesn't strictly conform to RFC standards
-- **WHEN** MailHelper parses the address with InternetAddress.parse(emailAddress, false)
-- **THEN** the address is accepted without throwing an exception
+- **GIVEN** a recipient address "user@example" (missing TLD)
+- **WHEN** sendMail() is invoked with this address
+- **THEN** InternetAddress.parse(address, false) accepts the address without throwing an exception
 
-### Requirement: XML validation
+### Requirement: Mail Session unavailability handling
 
-Mail.fromXML() SHALL validate incoming XML against the Mail DTD schema using validating=true, causing malformed or invalid messages to throw XMLDocumentException and fail processing.
+When the Mail Session resource is unavailable or email transmission fails due to MailerAppException, the system SHALL catch the exception and continue processing without re-throwing to the container. The message SHALL be discarded and processing SHALL advance to the next message.
 
-#### Scenario: Invalid XML is rejected
+#### Scenario: Mail Session unavailable is silently ignored
 
-- **GIVEN** XML that doesn't conform to the Mail DTD schema
-- **WHEN** Mail.fromXML() parses the XML with VALIDATING=true
-- **THEN** an XMLDocumentException is thrown and message processing fails
+- **GIVEN** a Mail message in the queue when the Mail Session is not configured
+- **WHEN** MailerMDB.onMessage() attempts to send the email
+- **THEN** MailerAppException is caught, the message is not re-delivered, and processing continues
+
+### Requirement: JMS and XML parsing error handling
+
+When JMS transport errors (JMSException) or XML parsing errors (XMLDocumentException) occur during message processing, the system SHALL wrap the exception in an EJBException and throw it, causing the message to be marked unprocessed and redelivered by the container.
+
+#### Scenario: Malformed XML causes message redelivery
+
+- **GIVEN** a malformed XML message in the queue
+- **WHEN** MailerMDB.onMessage() parses it via Mail.fromXML()
+- **THEN** XMLDocumentException is caught, wrapped in EJBException, thrown, and the container marks the message for redelivery
+
+### Requirement: Transaction management for MailerMDB
+
+The onMessage() method of MailerMDB SHALL execute with EJB container-managed transaction attribute "Required", meaning each message processing executes within a container-managed transaction context. On exception, the transaction SHALL be rolled back.
+
+#### Scenario: Email processing executes in transaction context
+
+- **GIVEN** a message arriving on the mailer queue
+- **WHEN** MailerMDB.onMessage() is invoked
+- **THEN** the method executes within a container-managed transaction with Required attribute
+
+### Requirement: Asynchronous message sending via AsyncSenderEJB
+
+The system SHALL support sending asynchronous messages via a stateless session bean that creates a JMS TextMessage, populates it with message content, and sends it to the AsyncSenderQueue for asynchronous delivery.
+
+#### Scenario: Message is queued for async delivery
+
+- **GIVEN** a string message to be sent asynchronously
+- **WHEN** AsyncSenderEJB.sendAMessage(messageString) is invoked
+- **THEN** a TextMessage is created, populated with the message text, and sent to AsyncSenderQueue
+
+### Requirement: JMS queue connection management
+
+The system SHALL obtain a QueueConnection from the JMS QueueConnectionFactory, create a QueueSession, and send the TextMessage to the queue. The QueueConnection SHALL be explicitly closed in a finally block to ensure resource cleanup regardless of success or exception.
+
+#### Scenario: Queue connection is properly closed after sending
+
+- **GIVEN** an invocation of sendAMessage()
+- **WHEN** the message is sent and the method exits (success or exception)
+- **THEN** the QueueConnection is closed in the finally block to return the connection to the pool
+
+### Requirement: Transaction management for AsyncSenderEJB
+
+The sendAMessage() method of AsyncSenderEJB SHALL execute with EJB container-managed transaction attribute "Required", ensuring the message send operation participates in a transaction context and is rolled back if the transaction fails.
+
+#### Scenario: Message sending executes in transaction context
+
+- **GIVEN** an invocation of AsyncSenderEJB.sendAMessage()
+- **WHEN** the method executes
+- **THEN** it participates in a container-managed transaction with Required attribute; exceptions cause rollback
