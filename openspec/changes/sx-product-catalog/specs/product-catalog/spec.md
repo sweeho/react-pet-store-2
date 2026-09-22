@@ -150,7 +150,7 @@ Pagination SHALL be based on absolute row positioning in the result set. If the 
 
 ### Requirement: Item attribute access
 
-Item attributes (attribute1 through attribute5) are optional string fields supporting 1-based indexed access. Access without index returns attribute1 (default).
+Item attributes (attribute1 through attribute5) SHALL be optional string fields supporting 1-based indexed access. Access without index SHALL return attribute1 (default).
 
 #### Scenario: Item attributes are accessed by index
 
@@ -186,7 +186,7 @@ All Catalog EJB methods SHALL be unchecked for authorization (no role-based acce
 
 ### Requirement: Read-only catalog operations
 
-All catalog data access operations are read-only. No insert, update, or delete operations are provided through the Catalog EJB or DAO interfaces.
+All catalog data access operations SHALL be read-only. No insert, update, or delete operations SHALL be provided through the Catalog EJB or DAO interfaces.
 
 #### Scenario: Only read operations are available
 
