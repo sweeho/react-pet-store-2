@@ -1,0 +1,572 @@
+records:
+  - record_key: ADMIN-ENTITY-0001
+    kind: entity
+    capability_key: admin-operations
+    requirement: >
+      The system SHALL define a ServiceLocatorException class that wraps lower-level
+      exceptions (NamingException, general Exception) and provides a mechanism to
+      retrieve the root cause exception through recursive unwrapping.
+    confidence: high
+    confidence_basis: >
+      The exception class is explicitly defined with clear constructor overloads and
+      a getRootCause() method that recursively unwraps the exception chain. The
+      implementation is straightforward and unambiguous - both passes would identify
+      the same structure and behavior.
+    risk_class: operational
+    basis: >
+      ServiceLocatorException.java defines three constructor overloads: one with
+      message and exception, one with message only, and one with exception only.
+      The getRootCause() method recursively checks if the wrapped exception is a
+      ServiceLocatorException and unwraps it until reaching the root cause or the
+      exception itself.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/servicelocator/src/com/sun/j2ee/blueprints/servicelocator/ServiceLocatorException.java
+        line_start: 46
+        line_end: 97
+        excerpt: |
+          public class ServiceLocatorException extends Exception {
+            private Exception exception;
+            public ServiceLocatorException(String message, Exception exception) {
+              super(message);
+              this.exception = exception;
+            }
+            public Exception getException() {
+              return exception;
+            }
+            public Exception getRootCause() {
+              if (exception instanceof ServiceLocatorException) {
+                return ((ServiceLocatorException) exception).getRootCause();
+              }
+              return exception == null ? this : exception;
+            }
+    stack_metadata:
+      framework: J2EE exception handling
+
+  - record_key: ADMIN-WORKFLOW-0001
+    kind: workflow
+    capability_key: admin-operations
+    requirement: >
+      The system SHALL provide a Service Locator utility for the EJB tier that
+      initializes a JNDI InitialContext and uses it to look up distributed enterprise
+      resources without caching, throwing ServiceLocatorException on any lookup failure.
+    confidence: high
+    confidence_basis: >
+      The EJB ServiceLocator class explicitly instantiates InitialContext in its
+      constructor and implements multiple lookup methods that wrap exceptions
+      consistently. The absence of caching is evident from the code structure -
+      each lookup method performs a direct JNDI lookup without checking a cache.
+    risk_class: operational
+    basis: >
+      The com.sun.j2ee.blueprints.servicelocator.ejb.ServiceLocator class instantiates
+      InitialContext in its constructor and catches NamingException. Each lookup method
+      (getLocalHome, getRemoteHome, getQueueConnectionFactory, getQueue, getTopic,
+      getDataSource, getUrl, getBoolean, getString) performs a direct ic.lookup()
+      call without any cache check, and wraps any exception in ServiceLocatorException.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/servicelocator/src/com/sun/j2ee/blueprints/servicelocator/ejb/ServiceLocator.java
+        line_start: 60
+        line_end: 74
+        excerpt: |
+          public class ServiceLocator {
+            private InitialContext ic;
+            private static ServiceLocator me;
+            public ServiceLocator() throws ServiceLocatorException  {
+              try {
+                ic = new InitialContext();
+              } catch (NamingException ne) {
+                    throw new ServiceLocatorException(ne);
+              } catch (Exception e) {
+                    throw new ServiceLocatorException(e);
+              }
+            }
+      - path: legacy-source/petstore1.3.2/src/components/servicelocator/src/com/sun/j2ee/blueprints/servicelocator/ejb/ServiceLocator.java
+        line_start: 83
+        line_end: 93
+        excerpt: |
+          public EJBLocalHome getLocalHome(String jndiHomeName) throws ServiceLocatorException {
+            EJBLocalHome home = null;
+            try {
+                home = (EJBLocalHome) ic.lookup(jndiHomeName);
+             } catch (NamingException ne) {
+                  throw new ServiceLocatorException(ne);
+             } catch (Exception e) {
+                  throw new ServiceLocatorException(e);
+             }
+             return home;
+          }
+    stack_metadata:
+      framework: J2EE Service Locator pattern (EJB tier)
+      ejb.bean: n/a - utility class
+
+  - record_key: ADMIN-WORKFLOW-0002
+    kind: workflow
+    capability_key: admin-operations
+    requirement: >
+      The system SHALL provide a Service Locator utility for the web tier that
+      implements the singleton pattern with static initialization, maintains a
+      synchronized HashMap cache for JNDI lookups, and returns cached resources
+      on subsequent lookups for the same JNDI name.
+    confidence: high
+    confidence_basis: >
+      The web ServiceLocator class implements both the singleton pattern (static
+      initializer, getInstance() method) and caching (synchronized HashMap, cache
+      check-before-lookup pattern) explicitly and consistently across all lookup
+      methods. The code is declarative and straightforward.
+    risk_class: operational
+    basis: >
+      The com.sun.j2ee.blueprints.servicelocator.web.ServiceLocator class uses a
+      static block to initialize a singleton instance. The constructor creates a
+      synchronized HashMap for cache. Each lookup method (getLocalHome, getRemoteHome,
+      getQueueConnectionFactory, getQueue, getTopic, getDataSource, getUrl, getBoolean,
+      getString) checks if the JNDI name is in the cache using containsKey() before
+      performing a lookup, and stores the result in the cache for reuse.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/servicelocator/src/com/sun/j2ee/blueprints/servicelocator/web/ServiceLocator.java
+        line_start: 67
+        line_end: 96
+        excerpt: |
+          public class ServiceLocator {
+            private InitialContext ic;
+            private Map cache;
+            private static ServiceLocator me;
+            static {
+              try {
+                me = new ServiceLocator();
+              } catch(ServiceLocatorException se) {
+                System.err.println(se);
+                se.printStackTrace(System.err);
+              }
+            }
+            private ServiceLocator() throws ServiceLocatorException  {
+              try {
+                ic = new InitialContext();
+                cache = Collections.synchronizedMap(new HashMap());
+              } catch (NamingException ne) {
+                    throw new ServiceLocatorException(ne);
+              }
+            }
+            static public ServiceLocator getInstance() {
+              return me;
+            }
+      - path: legacy-source/petstore1.3.2/src/components/servicelocator/src/com/sun/j2ee/blueprints/servicelocator/web/ServiceLocator.java
+        line_start: 106
+        line_end: 121
+        excerpt: |
+          public EJBLocalHome getLocalHome(String jndiHomeName) throws ServiceLocatorException {
+            EJBLocalHome home = null;
+            try {
+              if (cache.containsKey(jndiHomeName)) {
+                  home = (EJBLocalHome) cache.get(jndiHomeName);
+              } else {
+                  home = (EJBLocalHome) ic.lookup(jndiHomeName);
+                  cache.put(jndiHomeName, home);
+              }
+             } catch (NamingException ne) {
+                  throw new ServiceLocatorException(ne);
+             } catch (Exception e) {
+                  throw new ServiceLocatorException(e);
+             }
+             return home;
+          }
+    stack_metadata:
+      framework: J2EE Service Locator pattern (web tier)
+      session.scope: application singleton
+      db.object: n/a - JNDI cache only
+
+  - record_key: ADMIN-REQUIREMENT-0001
+    kind: requirement
+    capability_key: admin-operations
+    requirement: >
+      The system SHALL support JNDI lookup of EJB Local Homes and cast the result
+      to EJBLocalHome, throwing ServiceLocatorException if the lookup fails or
+      if NamingException occurs.
+    confidence: high
+    confidence_basis: >
+      Both EJB and web tier ServiceLocator classes implement the getLocalHome()
+      method with identical semantics: JNDI lookup followed by cast. The method
+      signature and exception handling are consistent across both implementations.
+    risk_class: operational
+    basis: >
+      Both ServiceLocator implementations define getLocalHome(String jndiHomeName)
+      that performs ic.lookup(jndiHomeName) and casts the result to EJBLocalHome.
+      The method declares ServiceLocatorException as thrown and catches NamingException
+      and general Exception.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/servicelocator/src/com/sun/j2ee/blueprints/servicelocator/ejb/ServiceLocator.java
+        line_start: 83
+        line_end: 93
+        excerpt: |
+          public EJBLocalHome getLocalHome(String jndiHomeName) throws ServiceLocatorException {
+            EJBLocalHome home = null;
+            try {
+                home = (EJBLocalHome) ic.lookup(jndiHomeName);
+             } catch (NamingException ne) {
+                  throw new ServiceLocatorException(ne);
+             } catch (Exception e) {
+                  throw new ServiceLocatorException(e);
+             }
+             return home;
+          }
+      - path: legacy-source/petstore1.3.2/src/components/servicelocator/src/com/sun/j2ee/blueprints/servicelocator/web/ServiceLocator.java
+        line_start: 106
+        line_end: 121
+        excerpt: |
+          public EJBLocalHome getLocalHome(String jndiHomeName) throws ServiceLocatorException {
+            EJBLocalHome home = null;
+            try {
+              if (cache.containsKey(jndiHomeName)) {
+                  home = (EJBLocalHome) cache.get(jndiHomeName);
+              } else {
+                  home = (EJBLocalHome) ic.lookup(jndiHomeName);
+                  cache.put(jndiHomeName, home);
+              }
+             } catch (NamingException ne) {
+                  throw new ServiceLocatorException(ne);
+             } catch (Exception e) {
+                  throw new ServiceLocatorException(e);
+             }
+             return home;
+          }
+    stack_metadata:
+      framework: JNDI EJB lookup
+
+  - record_key: ADMIN-REQUIREMENT-0002
+    kind: requirement
+    capability_key: admin-operations
+    requirement: >
+      The system SHALL support JNDI lookup of EJB Remote Homes by performing
+      a lookup followed by PortableRemoteObject.narrow() to cast the result
+      to the specified Class type, throwing ServiceLocatorException on any failure.
+    confidence: high
+    confidence_basis: >
+      Both ServiceLocator implementations implement getRemoteHome() with the same
+      logic: lookup, narrow, cast. The use of PortableRemoteObject.narrow() is
+      explicit and required for remote object handling in J2EE.
+    risk_class: operational
+    basis: >
+      Both EJB and web tier ServiceLocator classes define getRemoteHome(String jndiHomeName,
+      Class className). The method performs ic.lookup() to get the remote object reference,
+      calls PortableRemoteObject.narrow(objref, className) to cast it, then casts to
+      EJBHome. Both catch NamingException and general Exception.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/servicelocator/src/com/sun/j2ee/blueprints/servicelocator/ejb/ServiceLocator.java
+        line_start: 101
+        line_end: 113
+        excerpt: |
+          public EJBHome getRemoteHome(String jndiHomeName, Class className) throws ServiceLocatorException {
+            EJBHome home = null;
+            try {
+                  Object objref = ic.lookup(jndiHomeName);
+                  Object obj = PortableRemoteObject.narrow(objref, className);
+                  home = (EJBHome)obj;
+            } catch (NamingException ne) {
+                  throw new ServiceLocatorException(ne);
+            } catch (Exception e) {
+                  throw new ServiceLocatorException(e);
+            }
+             return home;
+          }
+      - path: legacy-source/petstore1.3.2/src/components/servicelocator/src/com/sun/j2ee/blueprints/servicelocator/web/ServiceLocator.java
+        line_start: 129
+        line_end: 147
+        excerpt: |
+          public EJBHome getRemoteHome(String jndiHomeName, Class className) throws ServiceLocatorException {
+            EJBHome home = null;
+            try {
+              if (cache.containsKey(jndiHomeName)) {
+                  home = (EJBHome) cache.get(jndiHomeName);
+              } else {
+                  Object objref = ic.lookup(jndiHomeName);
+                  Object obj = PortableRemoteObject.narrow(objref, className);
+                  home = (EJBHome)obj;
+                  cache.put(jndiHomeName, home);
+              }
+             } catch (NamingException ne) {
+                  throw new ServiceLocatorException(ne);
+             } catch (Exception e) {
+                  throw new ServiceLocatorException(e);
+             }
+             return home;
+          }
+    stack_metadata:
+      framework: JNDI remote EJB lookup with PortableRemoteObject
+
+  - record_key: ADMIN-REQUIREMENT-0003
+    kind: requirement
+    capability_key: admin-operations
+    requirement: >
+      The system SHALL support JNDI lookup of JMS QueueConnectionFactory resources
+      by name and return a QueueConnectionFactory instance, throwing ServiceLocatorException
+      on any lookup failure.
+    confidence: high
+    confidence_basis: >
+      Both ServiceLocator implementations provide getQueueConnectionFactory() with
+      identical semantics. The method is consistently implemented across EJB and
+      web tiers with the same exception handling pattern.
+    risk_class: operational
+    basis: >
+      Both EJB and web tier ServiceLocator classes define getQueueConnectionFactory()
+      that performs ic.lookup() and casts the result to QueueConnectionFactory,
+      catching NamingException and general Exception.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/servicelocator/src/com/sun/j2ee/blueprints/servicelocator/ejb/ServiceLocator.java
+        line_start: 119
+        line_end: 130
+        excerpt: |
+          public  QueueConnectionFactory getQueueConnectionFactory(String qConnFactoryName)
+                                                               throws ServiceLocatorException {
+            QueueConnectionFactory factory = null;
+            try {
+               factory = (QueueConnectionFactory) ic.lookup(qConnFactoryName);
+            } catch (NamingException ne) {
+              throw new ServiceLocatorException(ne);
+            } catch (Exception e) {
+                  throw new ServiceLocatorException(e);
+            }
+            return factory;
+          }
+    stack_metadata:
+      framework: JNDI JMS resource lookup
+
+  - record_key: ADMIN-REQUIREMENT-0004
+    kind: requirement
+    capability_key: admin-operations
+    requirement: >
+      The system SHALL support JNDI lookup of JMS Queue destinations by name
+      and return a Queue instance, throwing ServiceLocatorException on any lookup failure.
+    confidence: high
+    confidence_basis: >
+      Both ServiceLocator implementations provide getQueue() with identical semantics.
+      The method is consistently implemented across both tiers.
+    risk_class: operational
+    basis: >
+      Both EJB and web tier ServiceLocator classes define getQueue() that performs
+      ic.lookup() and casts the result to Queue, with standard exception handling.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/servicelocator/src/com/sun/j2ee/blueprints/servicelocator/ejb/ServiceLocator.java
+        line_start: 136
+        line_end: 146
+        excerpt: |
+          public  Queue getQueue(String queueName) throws ServiceLocatorException {
+            Queue queue = null;
+            try {
+              queue =(Queue)ic.lookup(queueName);
+            } catch (NamingException ne) {
+                  throw new ServiceLocatorException(ne);
+            } catch (Exception e) {
+                  throw new ServiceLocatorException(e);
+            }
+            return queue;
+          }
+    stack_metadata:
+      framework: JNDI JMS Queue lookup
+
+  - record_key: ADMIN-REQUIREMENT-0005
+    kind: requirement
+    capability_key: admin-operations
+    requirement: >
+      The system SHALL support JNDI lookup of JMS TopicConnectionFactory resources
+      by name and return a TopicConnectionFactory instance, throwing ServiceLocatorException
+      on any lookup failure.
+    confidence: high
+    confidence_basis: >
+      Both ServiceLocator implementations provide getTopicConnectionFactory() with
+      identical implementation across EJB and web tiers.
+    risk_class: operational
+    basis: >
+      Both EJB and web tier ServiceLocator classes define getTopicConnectionFactory()
+      that performs ic.lookup() and casts the result to TopicConnectionFactory,
+      with standard exception handling.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/servicelocator/src/com/sun/j2ee/blueprints/servicelocator/ejb/ServiceLocator.java
+        line_start: 152
+        line_end: 162
+        excerpt: |
+          public  TopicConnectionFactory getTopicConnectionFactory(String topicConnFactoryName) throws ServiceLocatorException {
+            TopicConnectionFactory factory = null;
+            try {
+              factory = (TopicConnectionFactory) ic.lookup(topicConnFactoryName);
+            } catch (NamingException ne) {
+               throw new ServiceLocatorException(ne);
+            } catch (Exception e) {
+                  throw new ServiceLocatorException(e);
+            }
+            return factory;
+          }
+    stack_metadata:
+      framework: JNDI JMS resource lookup
+
+  - record_key: ADMIN-REQUIREMENT-0006
+    kind: requirement
+    capability_key: admin-operations
+    requirement: >
+      The system SHALL support JNDI lookup of JMS Topic destinations by name
+      and return a Topic instance, throwing ServiceLocatorException on any lookup failure.
+    confidence: high
+    confidence_basis: >
+      Both ServiceLocator implementations provide getTopic() with identical semantics
+      and exception handling.
+    risk_class: operational
+    basis: >
+      Both EJB and web tier ServiceLocator classes define getTopic() that performs
+      ic.lookup() and casts the result to Topic.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/servicelocator/src/com/sun/j2ee/blueprints/servicelocator/ejb/ServiceLocator.java
+        line_start: 168
+        line_end: 178
+        excerpt: |
+          public  Topic getTopic(String topicName) throws ServiceLocatorException {
+            Topic topic = null;
+            try {
+                topic = (Topic)ic.lookup(topicName);
+            } catch (NamingException ne) {
+               throw new ServiceLocatorException(ne);
+            } catch (Exception e) {
+                  throw new ServiceLocatorException(e);
+            }
+            return topic;
+          }
+    stack_metadata:
+      framework: JNDI JMS Topic lookup
+
+  - record_key: ADMIN-REQUIREMENT-0007
+    kind: requirement
+    capability_key: admin-operations
+    requirement: >
+      The system SHALL support JNDI lookup of DataSource resources by name
+      and return a DataSource instance, throwing ServiceLocatorException on any lookup failure.
+    confidence: high
+    confidence_basis: >
+      Both ServiceLocator implementations provide getDataSource() with identical
+      implementation across both tiers.
+    risk_class: operational
+    basis: >
+      Both EJB and web tier ServiceLocator classes define getDataSource() that
+      performs ic.lookup() and casts the result to DataSource.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/servicelocator/src/com/sun/j2ee/blueprints/servicelocator/ejb/ServiceLocator.java
+        line_start: 184
+        line_end: 194
+        excerpt: |
+          public DataSource getDataSource(String dataSourceName) throws ServiceLocatorException {
+            DataSource dataSource = null;
+            try {
+                dataSource = (DataSource)ic.lookup(dataSourceName);
+            } catch (NamingException ne) {
+               throw new ServiceLocatorException(ne);
+            } catch (Exception e) {
+                  throw new ServiceLocatorException(e);
+            }
+            return dataSource;
+          }
+    stack_metadata:
+      framework: JNDI DataSource lookup
+
+  - record_key: ADMIN-REQUIREMENT-0008
+    kind: requirement
+    capability_key: admin-operations
+    requirement: >
+      The system SHALL support JNDI lookup of URL environment entries by name
+      and return a URL instance, throwing ServiceLocatorException on any lookup failure.
+    confidence: high
+    confidence_basis: >
+      Both ServiceLocator implementations provide getUrl() with identical implementation.
+    risk_class: operational
+    basis: >
+      Both EJB and web tier ServiceLocator classes define getUrl() that performs
+      ic.lookup() and casts the result to URL.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/servicelocator/src/com/sun/j2ee/blueprints/servicelocator/ejb/ServiceLocator.java
+        line_start: 200
+        line_end: 211
+        excerpt: |
+          public URL getUrl(String envName) throws ServiceLocatorException {
+            URL url = null;
+            try {
+              url = (URL)ic.lookup(envName);
+            } catch (NamingException ne) {
+                  throw new ServiceLocatorException(ne);
+            } catch (Exception e) {
+                  throw new ServiceLocatorException(e);
+            }
+            return url;
+          }
+    stack_metadata:
+      framework: JNDI environment entry lookup
+
+  - record_key: ADMIN-REQUIREMENT-0009
+    kind: requirement
+    capability_key: admin-operations
+    requirement: >
+      The system SHALL support JNDI lookup of boolean environment entries by name,
+      cast the result to Boolean, and call booleanValue() to return a primitive boolean,
+      throwing ServiceLocatorException on any lookup failure.
+    confidence: high
+    confidence_basis: >
+      Both ServiceLocator implementations provide getBoolean() with identical logic:
+      lookup, cast to Boolean, call booleanValue().
+    risk_class: operational
+    basis: >
+      Both EJB and web tier ServiceLocator classes define getBoolean() that performs
+      ic.lookup(), casts to Boolean, and returns bool.booleanValue().
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/servicelocator/src/com/sun/j2ee/blueprints/servicelocator/ejb/ServiceLocator.java
+        line_start: 217
+        line_end: 227
+        excerpt: |
+          public boolean getBoolean(String envName) throws ServiceLocatorException {
+            Boolean bool = null;
+            try {
+              bool = (Boolean)ic.lookup(envName);
+            } catch (NamingException ne) {
+                  throw new ServiceLocatorException(ne);
+            } catch (Exception e) {
+                  throw new ServiceLocatorException(e);
+            }
+            return bool.booleanValue();
+          }
+    stack_metadata:
+      framework: JNDI environment entry lookup
+
+  - record_key: ADMIN-REQUIREMENT-0010
+    kind: requirement
+    capability_key: admin-operations
+    requirement: >
+      The system SHALL support JNDI lookup of String environment entries by name
+      and return the String value, throwing ServiceLocatorException on any lookup failure.
+    confidence: high
+    confidence_basis: >
+      Both ServiceLocator implementations provide getString() with identical semantics.
+    risk_class: operational
+    basis: >
+      Both EJB and web tier ServiceLocator classes define getString() that performs
+      ic.lookup() and casts the result to String.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/servicelocator/src/com/sun/j2ee/blueprints/servicelocator/ejb/ServiceLocator.java
+        line_start: 233
+        line_end: 243
+        excerpt: |
+          public String getString(String envName) throws ServiceLocatorException {
+            String envEntry = null;
+            try {
+              envEntry = (String)ic.lookup(envName);
+            } catch (NamingException ne) {
+                  throw new ServiceLocatorException(ne);
+            } catch (Exception e) {
+                  throw new ServiceLocatorException(e);
+            }
+            return envEntry ;
+          }
+    stack_metadata:
+      framework: JNDI environment entry lookup
+
+findings:
+  - kind: ambiguity
+    path: legacy-source/petstore1.3.2/src/components/servicelocator/src/com/sun/j2ee/blueprints/servicelocator/web/ServiceLocator.java
+    description: >
+      The web ServiceLocator static initializer catches and prints ServiceLocatorException
+      but does not prevent instantiation of the singleton. If ServiceLocator() throws
+      during static initialization, 'me' remains null, but getInstance() will return
+      null rather than throwing or failing. Callers expecting a non-null instance may
+      receive null without error, leading to silent failures downstream. The intent
+      (fail-fast vs. graceful degradation) is unclear from the code alone.
