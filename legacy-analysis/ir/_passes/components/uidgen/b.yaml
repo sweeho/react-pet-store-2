@@ -1,0 +1,466 @@
+records:
+  - record_key: UIDGEN-ENTITY-0001
+    kind: entity
+    capability_key: order-placement
+    requirement: >
+      A Counter entity SHALL consist of two persistent fields: name (String, primary key)
+      and counter (int), managed via CMP 2.x container-managed persistence.
+    confidence: high
+    confidence_basis: >
+      Both the CounterEJB abstract class (lines 50-54) and the ejb-jar.xml deployment
+      descriptor (lines 57-65) independently declare the same two CMP fields. The dual
+      declaration across code and configuration provides high confidence.
+    risk_class: operational
+    basis: >
+      CounterEJB declares abstract getCounter/setCounter and getName/setName pairs
+      (lines 50-54). The ejb-jar.xml <entity> section lists both as <cmp-field>
+      declarations (lines 57-64) with name as the <primkey-field> (line 65).
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/uidgen/src/com/sun/j2ee/blueprints/uidgen/counter/ejb/CounterEJB.java
+        line_start: 50
+        line_end: 54
+        excerpt: |
+          public abstract int getCounter();
+          public abstract void setCounter(int counter);
+          public abstract String getName();
+          public abstract void setName(String name);
+      - path: legacy-source/petstore1.3.2/src/components/uidgen/src/ejb-jar.xml
+        line_start: 57
+        line_end: 65
+        excerpt: |
+          <cmp-field>
+            <description>no description</description>
+            <field-name>counter</field-name>
+          </cmp-field>
+          <cmp-field>
+            <description>no description</description>
+            <field-name>name</field-name>
+          </cmp-field>
+          <primkey-field>name</primkey-field>
+    stack_metadata:
+      ejb.bean: CounterEJB
+      ejb.persistence: CMP 2.x
+
+  - record_key: UIDGEN-BR-0001
+    kind: business-rule
+    capability_key: order-placement
+    requirement: >
+      When getNextValue() is invoked on a Counter, the system SHALL increment the
+      counter field by one, persist the new value, and return a string concatenation
+      of the counter's name field with the incremented counter value.
+    confidence: high
+    confidence_basis: >
+      The implementation is declared in the CounterEJB.getNextValue() method (lines
+      67-71), and the counter is persisted through CMP container management. This is
+      the single source of the logic, but the requirement is enforced in code and
+      database transactions are managed declaratively, providing confidence.
+    risk_class: operational
+    basis: >
+      CounterEJB.getNextValue() (lines 67-71) fetches the current counter value,
+      increments it, calls setCounter() to persist the new value, and returns
+      getName() concatenated with String.valueOf(count).
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/uidgen/src/com/sun/j2ee/blueprints/uidgen/counter/ejb/CounterEJB.java
+        line_start: 67
+        line_end: 71
+        excerpt: |
+          public String getNextValue() {
+              int count = getCounter() + 1;
+              setCounter(count);
+              return getName() + String.valueOf(count);
+          }
+    stack_metadata:
+      ejb.bean: CounterEJB
+      ejb.transaction: Required
+
+  - record_key: UIDGEN-BR-0002
+    kind: business-rule
+    capability_key: order-placement
+    requirement: >
+      The system SHALL initialize a new Counter with counter value 0 when created
+      via CounterLocalHome.create(String name).
+    confidence: high
+    confidence_basis: >
+      The ejbCreate method in CounterEJB (lines 58-62) explicitly sets counter to 0.
+      This is the sole implementation of Counter creation and is consistent with
+      initialization semantics.
+    risk_class: operational
+    basis: >
+      CounterEJB.ejbCreate(String name) (lines 58-62) calls setName(name) and
+      setCounter(0) to initialize the entity.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/uidgen/src/com/sun/j2ee/blueprints/uidgen/counter/ejb/CounterEJB.java
+        line_start: 58
+        line_end: 62
+        excerpt: |
+          public String ejbCreate(String name) throws CreateException {
+              setName(name);
+              setCounter(0);
+              return null;
+          }
+    stack_metadata:
+      ejb.bean: CounterEJB
+      ejb.transaction: Required
+
+  - record_key: UIDGEN-WORKFLOW-0001
+    kind: workflow
+    capability_key: order-placement
+    requirement: >
+      GIVEN a UniqueIdGeneratorEJB session, WHEN getUniqueId(String idPrefix) is
+      invoked, THEN the system SHALL attempt to retrieve or create a Counter with
+      the given prefix as its name, obtain the next value from that Counter, and
+      return it.
+    confidence: high
+    confidence_basis: >
+      The UniqueIdGeneratorEJB.getUniqueId() method (line 68) delegates to
+      getCounter() (lines 74-86), which encapsulates the lookup-or-create logic.
+      Both methods are straightforward implementations with no ambiguity.
+    risk_class: operational
+    basis: >
+      UniqueIdGeneratorEJB.getUniqueId(String idPrefix) calls getCounter(idPrefix).getNextValue().
+      The getCounter() helper (lines 74-86) attempts CounterLocalHome.findByPrimaryKey(name);
+      if a FinderException is thrown, it calls create(name) to instantiate a new Counter.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/uidgen/src/com/sun/j2ee/blueprints/uidgen/ejb/UniqueIdGeneratorEJB.java
+        line_start: 67
+        line_end: 69
+        excerpt: |
+          public String getUniqueId(String idPrefix) {
+              return getCounter(idPrefix).getNextValue();
+          }
+      - path: legacy-source/petstore1.3.2/src/components/uidgen/src/com/sun/j2ee/blueprints/uidgen/ejb/UniqueIdGeneratorEJB.java
+        line_start: 74
+        line_end: 86
+        excerpt: |
+          private CounterLocal getCounter(String name) {
+              try {
+                  CounterLocal counter = null;
+                  try {
+                      counter = clh.findByPrimaryKey(name);
+                  } catch (FinderException fe) {
+                      counter = clh.create(name);
+                  }
+                  return counter;
+              } catch (CreateException ce) {
+                  throw new EJBException("Could not create counter " + name + ". Error: " + ce.getMessage());
+              }
+          }
+    stack_metadata:
+      ejb.bean: UniqueIdGeneratorEJB
+      ejb.transaction: Required
+
+  - record_key: UIDGEN-BR-0003
+    kind: business-rule
+    capability_key: order-placement
+    requirement: >
+      The UniqueIdGeneratorEJB SHALL be a stateless session bean with
+      container-managed transactions.
+    confidence: high
+    confidence_basis: >
+      The ejb-jar.xml deployment descriptor (lines 77-78) explicitly declares
+      <session-type>Stateless</session-type> and <transaction-type>Container</transaction-type>.
+      This is declarative configuration that is definitive.
+    risk_class: operational
+    basis: >
+      The ejb-jar.xml <session> descriptor for UniqueIdGeneratorEJB (lines 71-90)
+      declares session-type as Stateless and transaction-type as Container.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/uidgen/src/ejb-jar.xml
+        line_start: 71
+        line_end: 90
+        excerpt: |
+          <session>
+            <display-name>UniqueIdGeneratorEB</display-name>
+            <ejb-name>UniqueIdGeneratorEJB</ejb-name>
+            <local-home>com.sun.j2ee.blueprints.uidgen.ejb.UniqueIdGeneratorLocalHome</local-home>
+            <local>com.sun.j2ee.blueprints.uidgen.ejb.UniqueIdGeneratorLocal</local>
+            <ejb-class>com.sun.j2ee.blueprints.uidgen.ejb.UniqueIdGeneratorEJB</ejb-class>
+            <session-type>Stateless</session-type>
+            <transaction-type>Container</transaction-type>
+    stack_metadata:
+      ejb.bean: UniqueIdGeneratorEJB
+      ejb.transaction: Container
+
+  - record_key: UIDGEN-BR-0004
+    kind: business-rule
+    capability_key: order-placement
+    requirement: >
+      The CounterEJB SHALL be a non-reentrant entity bean with container-managed
+      persistence and Container-managed transactions.
+    confidence: high
+    confidence_basis: >
+      The ejb-jar.xml deployment descriptor (lines 46-70) explicitly declares
+      <reentrant>False</reentrant>, <persistence-type>Container</persistence-type>,
+      and <cmp-version>2.x</cmp-version>. Transaction type is Container (inherited
+      from EJB 2.0 defaults for entity beans).
+    risk_class: operational
+    basis: >
+      The ejb-jar.xml <entity> descriptor for CounterEJB (lines 46-70) declares these
+      deployment attributes. The counter transactions are managed through
+      <container-transaction> declarations (lines 203-231).
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/uidgen/src/ejb-jar.xml
+        line_start: 46
+        line_end: 70
+        excerpt: |
+          <entity>
+            <display-name>CounterEB</display-name>
+            <ejb-name>CounterEJB</ejb-name>
+            <local-home>com.sun.j2ee.blueprints.uidgen.counter.ejb.CounterLocalHome</local-home>
+            <local>com.sun.j2ee.blueprints.uidgen.counter.ejb.CounterLocal</local>
+            <ejb-class>com.sun.j2ee.blueprints.uidgen.counter.ejb.CounterEJB</ejb-class>
+            <persistence-type>Container</persistence-type>
+            <prim-key-class>java.lang.String</prim-key-class>
+            <reentrant>False</reentrant>
+            <cmp-version>2.x</cmp-version>
+    stack_metadata:
+      ejb.bean: CounterEJB
+      ejb.persistence: CMP 2.x
+      ejb.reentrant: false
+
+  - record_key: UIDGEN-BR-0005
+    kind: business-rule
+    capability_key: order-placement
+    requirement: >
+      The getUniqueId(String idPrefix) and getNextValue() methods SHALL execute
+      within container-managed transactions with transaction attribute Required.
+    confidence: high
+    confidence_basis: >
+      The ejb-jar.xml <container-transaction> declarations (lines 232-242 for
+      getUniqueId and 223-231 for getNextValue) explicitly set <trans-attribute>Required
+      </trans-attribute> for both methods.
+    risk_class: operational
+    basis: >
+      The assembly descriptor <container-transaction> sections define transaction
+      semantics: getUniqueId (lines 232-242) and CounterEJB.getNextValue (lines
+      223-231) both specify trans-attribute Required.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/uidgen/src/ejb-jar.xml
+        line_start: 232
+        line_end: 242
+        excerpt: |
+          <container-transaction>
+            <method>
+              <ejb-name>UniqueIdGeneratorEJB</ejb-name>
+              <method-intf>Local</method-intf>
+              <method-name>getUniqueId</method-name>
+              <method-params>
+                <method-param>java.lang.String</method-param>
+              </method-params>
+            </method>
+            <trans-attribute>Required</trans-attribute>
+          </container-transaction>
+      - path: legacy-source/petstore1.3.2/src/components/uidgen/src/ejb-jar.xml
+        line_start: 223
+        line_end: 231
+        excerpt: |
+          <container-transaction>
+            <method>
+              <ejb-name>CounterEJB</ejb-name>
+              <method-intf>Local</method-intf>
+              <method-name>getNextValue</method-name>
+              <method-params />
+            </method>
+            <trans-attribute>Required</trans-attribute>
+          </container-transaction>
+    stack_metadata:
+      ejb.transaction: Required
+
+  - record_key: UIDGEN-BR-0006
+    kind: business-rule
+    capability_key: order-placement
+    requirement: >
+      Counter.create(String name) and Counter.remove() SHALL execute within
+      container-managed transactions with transaction attribute Required.
+    confidence: high
+    confidence_basis: >
+      The ejb-jar.xml <container-transaction> declarations (lines 212-221 for create
+      and 203-210 for remove) explicitly specify <trans-attribute>Required</trans-attribute>.
+    risk_class: operational
+    basis: >
+      The assembly descriptor <container-transaction> sections (lines 203-221) define
+      Required transaction semantics for the Counter entity's create and remove methods.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/uidgen/src/ejb-jar.xml
+        line_start: 212
+        line_end: 221
+        excerpt: |
+          <container-transaction>
+            <method>
+              <ejb-name>CounterEJB</ejb-name>
+              <method-intf>LocalHome</method-intf>
+              <method-name>create</method-name>
+              <method-params>
+                <method-param>java.lang.String</method-param>
+              </method-params>
+            </method>
+            <trans-attribute>Required</trans-attribute>
+          </container-transaction>
+      - path: legacy-source/petstore1.3.2/src/components/uidgen/src/ejb-jar.xml
+        line_start: 203
+        line_end: 210
+        excerpt: |
+          <container-transaction>
+            <method>
+              <ejb-name>CounterEJB</ejb-name>
+              <method-intf>Local</method-intf>
+              <method-name>remove</method-name>
+              <method-params />
+            </method>
+            <trans-attribute>Required</trans-attribute>
+          </container-transaction>
+    stack_metadata:
+      ejb.transaction: Required
+
+  - record_key: UIDGEN-BR-0007
+    kind: business-rule
+    capability_key: order-placement
+    requirement: >
+      All public methods on UniqueIdGeneratorEJB and CounterEJB, including lifecycle,
+      business, and framework methods, SHALL be unchecked and accessible without
+      role-based authorization.
+    confidence: high
+    confidence_basis: >
+      The ejb-jar.xml <method-permission> sections (lines 93-202) declare
+      <unchecked /> for all methods, indicating no role-based restrictions.
+    risk_class: operational
+    basis: >
+      The assembly descriptor <method-permission> sections (lines 93-202) enumerate
+      all methods (getPrimaryKey, getEJBLocalHome, remove, create, getUniqueId, etc.)
+      with <unchecked /> access.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/uidgen/src/ejb-jar.xml
+        line_start: 93
+        line_end: 202
+        excerpt: |
+          <assembly-descriptor>
+            <method-permission>
+              <unchecked />
+              <method>
+                <ejb-name>CounterEJB</ejb-name>
+                <method-intf>Local</method-intf>
+                <method-name>getPrimaryKey</method-name>
+                <method-params />
+              </method>
+    stack_metadata:
+      ejb.security: unchecked
+
+  - record_key: UIDGEN-BR-0008
+    kind: business-rule
+    capability_key: order-placement
+    requirement: >
+      GIVEN a Counter with primary key not found, WHEN UniqueIdGeneratorEJB invokes
+      CounterLocalHome.findByPrimaryKey(), and a FinderException is caught, THEN
+      CounterLocalHome.create(name) SHALL be invoked to create a new Counter.
+    confidence: high
+    confidence_basis: >
+      The getCounter() method (lines 74-86) implements an explicit try-catch pattern
+      for FinderException. This is the single implementation but the logic is clear
+      and deterministic.
+    risk_class: operational
+    basis: >
+      UniqueIdGeneratorEJB.getCounter() (lines 74-86) attempts findByPrimaryKey(name);
+      if FinderException is caught, it invokes create(name). The counter is returned
+      in either case.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/uidgen/src/com/sun/j2ee/blueprints/uidgen/ejb/UniqueIdGeneratorEJB.java
+        line_start: 74
+        line_end: 86
+        excerpt: |
+          private CounterLocal getCounter(String name) {
+              try {
+                  CounterLocal counter = null;
+                  try {
+                      counter = clh.findByPrimaryKey(name);
+                  } catch (FinderException fe) {
+                      counter = clh.create(name);
+                  }
+                  return counter;
+              } catch (CreateException ce) {
+                  throw new EJBException("Could not create counter " + name + ". Error: " + ce.getMessage());
+              }
+          }
+    stack_metadata:
+      ejb.bean: UniqueIdGeneratorEJB
+
+  - record_key: UIDGEN-BR-0009
+    kind: business-rule
+    capability_key: order-placement
+    requirement: >
+      GIVEN a CounterLocalHome.create() throws CreateException, WHEN UniqueIdGeneratorEJB.
+      getUniqueId() is invoked, THEN an EJBException SHALL be thrown with a descriptive
+      message including the counter name and the original exception message.
+    confidence: medium
+    confidence_basis: >
+      The getCounter() method (lines 83-85) implements explicit exception translation,
+      but this is a secondary error path. The logic is clear but less commonly tested
+      than the happy path.
+    risk_class: operational
+    basis: >
+      UniqueIdGeneratorEJB.getCounter() (lines 83-85) catches CreateException and
+      throws EJBException with message "Could not create counter " + name + ". Error: "
+      + ce.getMessage().
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/uidgen/src/com/sun/j2ee/blueprints/uidgen/ejb/UniqueIdGeneratorEJB.java
+        line_start: 83
+        line_end: 85
+        excerpt: |
+          } catch (CreateException ce) {
+              throw new EJBException("Could not create counter " + name + ". Error: " + ce.getMessage());
+          }
+    stack_metadata:
+      ejb.bean: UniqueIdGeneratorEJB
+
+  - record_key: UIDGEN-BR-0010
+    kind: business-rule
+    capability_key: order-placement
+    requirement: >
+      GIVEN a NamingException during UniqueIdGeneratorEJB.ejbCreate(), WHEN the
+      Counter EJB home lookup fails, THEN an EJBException SHALL be thrown with message
+      "UniqueIdGeneratorEJB Got naming exception! " + exception message.
+    confidence: medium
+    confidence_basis: >
+      The ejbCreate() method (lines 56-63) explicitly catches NamingException, but this
+      is an initialization error path. The logic is deterministic but not commonly
+      exercised.
+    risk_class: operational
+    basis: >
+      UniqueIdGeneratorEJB.ejbCreate() (lines 60-62) attempts InitialContext.lookup()
+      of "java:comp/env/ejb/Counter". If NamingException is thrown, it is caught and
+      re-thrown as EJBException.
+    traces:
+      - path: legacy-source/petstore1.3.2/src/components/uidgen/src/com/sun/j2ee/blueprints/uidgen/ejb/UniqueIdGeneratorEJB.java
+        line_start: 56
+        line_end: 63
+        excerpt: |
+          public void ejbCreate() {
+            try {
+              ic = new InitialContext();
+              clh = (CounterLocalHome) ic.lookup("java:comp/env/ejb/Counter");
+            } catch (NamingException ne) {
+               throw new EJBException("UniqueIdGeneratorEJB Got naming exception! " + ne.getMessage());
+            }
+          }
+    stack_metadata:
+      ejb.bean: UniqueIdGeneratorEJB
+
+findings:
+  - kind: ambiguity
+    path: legacy-source/petstore1.3.2/src/components/uidgen/src/com/sun/j2ee/blueprints/uidgen/ejb/UniqueIdGeneratorLocal.java
+    description: >
+      Line 43 declares parameter idPrfix with apparent typo (missing 'e'), while the
+      interface documentation (line 42) and implementation use idPrefix. This is either
+      a typo in the interface signature or the implementation does not match the
+      interface contract. Verify whether both methods have the same parameter name or
+      if one is a documentation error.
+
+  - kind: unparseable
+    path: legacy-source/petstore1.3.2/src/components/uidgen/src/com/sun/j2ee/blueprints/uidgen/ejb/UniqueIdGeneratorEJB.java
+    description: >
+      The ejbCreate() method initializes CounterLocalHome via JNDI lookup at bean
+      creation time, storing it in instance field clh. This pattern is valid for a
+      stateless session bean if the container manages instance pooling, but the
+      initialization order and re-initialization behavior across the pool is not
+      explicitly documented in the code. Whether clh is safely shared across instances
+      or if ejbCreate is called for each instance cannot be determined from the source
+      alone.
