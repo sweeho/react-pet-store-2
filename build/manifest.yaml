@@ -1,367 +1,347 @@
 schemaVersion: 1
 program:
-  key: petstore-legacy-extract
-  title: Java Pet Store 1.3.2 Legacy Specification Extraction
+  key: prd-swhr2-v9
+  title: React Pet Store 2 Migration
   source: extraction
-  generator: vortex-spec-extraction
-  sourceRef: vortex/legacy-spec/sx-0001
 capabilities:
   - slug: authentication
-    title: User Authentication
+    title: User Authentication & Authorization
     order: 1
     dependsOn: []
-    priority: 0
     change:
       dir: openspec/changes/sx-authentication
       specCapabilities:
         - authentication
     canvas:
-      problem: The legacy authentication system is embedded across multiple J2EE components (Servlet Filters, EJB Entity Beans, JSP Forms, XML Configuration), with behavior distributed and not centrally documented.
-      solution: Form-based login with session state management, user account validation, protected resource configuration, and optional cookie-based username persistence for 30 days.
+      problem: Three distinct user roles (Shopper, Administrator, Supplier Staff) need independent authentication and session management, with admin and supplier sessions mutually exclusive in one browser.
+      solution: Form-based authentication with role-based access control, session management per browser, and mutual exclusion logic between admin and supplier applications.
       userStories:
-        - As a user, I want to log in with username and password, so that I can access protected resources.
-        - As an authenticated user, I want the system to remember my username via cookie, so that I don't have to re-enter it.
-        - As an administrator, I want to restrict access to sensitive URLs based on authentication status, so that only authorized users can access them.
+        - As a shopper, I want to sign in with username and password only at checkout, so that I can browse without creating an account.
+        - As a shopper, I want my username remembered via cookie, so that I don't re-enter it every visit.
+        - As an administrator, I want to sign in before seeing any orders or reports, so that order data is protected.
+        - As a supplier staff member, I want to sign in before viewing or updating inventory, so that stock data is protected.
+        - As a user with multiple roles, I want to sign out of one role before using another, so that sessions stay isolated.
       acceptanceCriteria:
-        - "Form-based login: User submits username/password via j_security_check and receives session authentication state"
-        - "Session management: j_signon Boolean flag, j_signon_username string, and j_signon_original_url stored in session"
-        - "Remember me feature: 30-day cookie (bp_signon) set when checkbox is checked during sign-on"
-        - "Protected resources: Unauthenticated requests redirected to login form; authenticated requests pass through filter chain"
-        - "Validation: Username 1-25 chars without '%' or '*'; password validation via SignOnEJB.authenticate()"
+        - Sign-in is required before checkout for shoppers; optional for browsing
+        - Username cookie persists for future visits; password is never stored
+        - Admin and supplier sessions cannot coexist in the same browser
+        - Admin and supplier sign-in uses distinct login pages
+        - Sign-out ends session and clears session data
       outOfScope:
         - OAuth or federated authentication
         - Multi-factor authentication
-        - Password reset or recovery flows
-        - User role-based access control
-        - SSO (Single Sign-On) integration
-      risksAssumptions: []
-      techStack: []
-      affectedCode: []
+        - Password reset flows
+        - User registration (shoppers self-register at checkout)
       screens:
-        - "Login form (ADMIN-UI-SCREEN-0001): username and password fields using j_security_check action"
-        - "Sign-in entry point (AUTH-SCREEN-0001): protects customer profile, customer actions, order entry, and signon welcome screens"
-        - "Authentication screens (AUTHN-SCREEN-0001): SIGN_IN, SIGN_IN_ERROR, and SIGN_IN_SUCCESS screen definitions"
-  - slug: customer-management
-    title: Customer Profile Management
-    order: 2
-    dependsOn:
-      - authentication
-    priority: 0
-    change:
-      dir: openspec/changes/sx-customer-management
-      specCapabilities:
-        - customer-management
-    canvas:
-      problem: Customer contact and shipping information is distributed across Address and ContactInfo EJB entities with implicit validation rules and state transitions.
-      solution: Persistent storage of customer contact information (name, address, phone, email) with form-based data entry, validation rules for required fields, and state/country dropdown lists.
-      userStories:
-        - As a customer, I want to provide and update my contact information, so that orders can be shipped to the correct address.
-        - As a customer, I want to use dropdown lists for state and country, so that I don't have to type them manually.
-        - As the system, I want to validate all required fields, so that incomplete information does not cause downstream failures.
-      acceptanceCriteria:
-        - "Contact form displays and accepts: First Name, Last Name, Street Address, Street Address 2 (optional), City, State/Province (dropdown), Postal Code, Country (dropdown), Telephone"
-        - "Validation enforces all required fields and rejects submission if any are missing"
-        - "State/Province and Country fields provide predefined dropdown lists for user selection"
-        - "Customer data persists via ContactInfo CMP entity"
-      outOfScope:
-        - Multiple address books or address history
-        - Address geocoding or validation against postal databases
-        - Shipping method selection
-        - Billing address vs shipping address separation at UI level
-      risksAssumptions: []
-      techStack: []
-      affectedCode: []
-      screens:
-        - "Customer information form (customer-management-screen-0001): displays and accepts customer contact information with dropdown selects for state/country and validation"
+        - Sign in
   - slug: product-catalog
     title: Product Catalog with Search
-    order: 3
+    order: 2
     dependsOn: []
-    priority: 0
     change:
       dir: openspec/changes/sx-product-catalog
       specCapabilities:
         - product-catalog
     canvas:
-      problem: Catalog data access logic is distributed across action beans, EJB session beans, and a data access layer, with pagination semantics, search behavior, and locale filtering implicit in code.
-      solution: Multi-locale, paginated access to hierarchical product data (categories, products, inventory items) through a stateless session bean facade (CatalogEJB) with full-text search and read-only operations.
+      problem: Product data is organized in a three-level hierarchy (Category → Product → Item) with search, paging, and multi-locale support across three languages (English, Japanese, Chinese).
+      solution: Stateless catalog access with multi-locale hierarchy, full-text search across item names and descriptions, keyword-based item filtering, and paginated result sets.
       userStories:
-        - As a customer, I want to browse product categories, so that I can find products I'm interested in.
-        - As a customer, I want to view products within a category and search for products by keyword, so that I can quickly locate specific items.
-        - As a customer, I want product information in my preferred language, so that I can shop in a familiar language.
-        - As the system, I want to efficiently paginate large result sets, so that pages load quickly.
+        - As a shopper, I want to browse categories on the home page, so that I can explore what's available.
+        - As a shopper, I want to see products within a category and items within a product, so that I can narrow down my search.
+        - As a shopper, I want to search by keyword across items, so that I can find specific pets quickly.
+        - As a shopper in Japan or China, I want to see product names and descriptions in my language, so that I can shop in my preferred language.
+        - As the system, I want pagination to scale to large catalogs without loading all results, so that browsing stays fast.
       acceptanceCriteria:
-        - "CatalogEJB exposes seven methods: getCategory, getCategories, getProduct, getProducts, getItem, getItems, searchItems"
-        - "Pagination uses absolute row positioning via resultSet.absolute(start+1) with configurable page size"
-        - "Multi-locale filtering: all queries accept Locale parameter and filter WHERE locale = ?"
-        - "Full-text search tokenizes keywords by whitespace and applies OR logic across product name, category ID, and item description"
-        - "Page wrapper returns list of results, start index, and hasNext flag for navigation"
+        - Five categories ship as reference data (Birds, Cats, Dogs, Fish, Reptiles)
+        - Categories, products, and items have localizable names and descriptions
+        - Search matches any keyword and returns items with description, price, and add-to-cart
+        - Category and product listings show two items per page with Previous and Next links
+        - Paging preserves search keywords when navigating result pages
+        - Home page shows an image map of categories
+        - Sidebar lists categories as links on all pages
       outOfScope:
         - Product reviews or ratings
-        - Inventory availability checks during browsing
-        - Product recommendations
-        - Shopping cart integration
-        - Price adjustments or promotions
-      risksAssumptions: []
-      techStack: []
-      affectedCode: []
-  - slug: shopping-cart
-    title: Shopping Cart Session Management
+        - Customer-facing stock levels or availability
+        - Dynamic category creation or editing
+        - Multiple suppliers or product sourcing
+      screens:
+        - Home
+        - Category listing
+        - Product listing
+        - Item detail
+        - Search results
+  - slug: customer-management
+    title: Customer Profile Management
+    order: 3
+    dependsOn:
+      - authentication
+    change:
+      dir: openspec/changes/sx-customer-management
+      specCapabilities:
+        - customer-management
+    canvas:
+      problem: Customers need to provide and manage contact information, shipping addresses, payment cards, and profile preferences (language, favorite category, personalization toggles).
+      solution: Self-service account creation and editing with form-based data entry, contact information capture, profile preferences, and saved payment card storage.
+      userStories:
+        - As a shopper, I want to create an account with contact, card, and language preferences in one form, so that checkout is fast next time.
+        - As a shopper, I want to view and edit my contact information, so that orders ship to the right place.
+        - As a shopper, I want to select a favorite pet category, so that MyList and pet tips show relevant content.
+        - As a shopper, I want to switch my language from English to Japanese or Chinese, so that I can shop in my preferred language.
+        - As a shopper, I want to toggle MyList and pet tips independently, so that I see only the extras I want.
+      acceptanceCriteria:
+        - Account creation captures first name, last name, street address (second line optional), city, state/province, postal code, country, telephone, email, card number, card type, expiry, language, favorite category, MyList toggle, pet tips toggle
+        - All fields except second address line are required
+        - State/province and country are dropdown lists with predefined options
+        - Customers can only view and edit their own account
+        - Customers cannot change username or password in account settings
+        - Checkout form pre-fills addresses and card from account
+      outOfScope:
+        - Multiple address books
+        - Password reset or recovery
+        - Account deletion
+        - Address validation against postal databases
+      screens:
+        - Create/edit account
+        - Account overview
+  - slug: payment-processing
+    title: Payment Processing
     order: 4
     dependsOn:
-      - product-catalog
-    priority: 0
-    change:
-      dir: openspec/changes/sx-shopping-cart
-      specCapabilities:
-        - shopping-cart
-    canvas:
-      problem: Shopping cart logic is scattered across EJBs, Struts actions, and JSP pages, with real-time pricing integration, quantity management, and order validation implicit in code.
-      solution: Stateful session bean (ShoppingCart EJB) maintaining HashMap of item quantities, with real-time catalog integration for pricing, currency formatting, line item cost calculation, and cart clearing on order completion.
-      userStories:
-        - As a customer, I want to add items to my shopping cart, so that I can purchase them later.
-        - As a customer, I want to view my cart contents, update quantities, and remove items, so that I can control my order.
-        - As a customer, I want to see accurate pricing and subtotals in my preferred currency, so that I know the total cost before ordering.
-        - As the system, I want real-time catalog lookups for pricing, so that price changes are immediately reflected in the cart.
-      acceptanceCriteria:
-        - "CartItem model stores seven fields: itemId, productId, category, name, attribute, quantity, unitCost"
-        - "ShoppingCart EJB stateful bean maintains HashMap<itemId, quantity> with add, delete, update, empty, getItems, getCount, getSubTotal, setLocale methods"
-        - "getItems() performs real-time catalog lookups via CatalogHelper for metadata (name, pricing, attributes) at retrieval time"
-        - "Line item totals calculated as quantity × unitCost; cart subtotal is sum of all line items"
-        - "Empty cart validation enforces non-empty cart before order placement"
-        - "Cart cleared via empty() method after successful order creation"
-      outOfScope:
-        - Persistent cart storage across sessions
-        - Wishlist or saved items functionality
-        - Cart sharing or gift registry features
-        - Abandoned cart recovery
-        - Coupon or discount code support
-      risksAssumptions: []
-      techStack: []
-      affectedCode: []
-      screens:
-        - "Shopping cart display (shopping-cart-screen-display-0001): lists all cart items with product attributes, name, quantity input, unit cost, line total, plus Update Cart and Remove controls per item, and cart subtotal in currency format; empty cart shows 'Your Shopping Cart is Empty.'"
-  - slug: order-placement
-    title: Order Creation and Checkout
-    order: 5
-    dependsOn:
-      - shopping-cart
       - customer-management
-      - authentication
-    priority: 0
-    change:
-      dir: openspec/changes/sx-order-placement
-      specCapabilities:
-        - order-placement
-    canvas:
-      problem: Order creation logic is scattered across action beans, entity lifecycle methods, and helpers, with relationship management, price calculation, and XML serialization implicit in code.
-      solution: Two-phase EJB lifecycle (ejbCreate/ejbPostCreate) atomically creating PurchaseOrder entity with related ContactInfo, CreditCard, and LineItem entities, unique ID generation, order XML serialization, and async transmission.
-      userStories:
-        - As a customer, I want to place an order from my shopping cart with billing/shipping addresses and payment card, so that my order is recorded for fulfillment.
-        - As the system, I want to generate unique order IDs, so that each order can be uniquely identified.
-        - As the system, I want to calculate order totals as sum of line items, so that customers pay the correct amount.
-        - As the system, I want to serialize orders to XML for transmission, so that they can be processed asynchronously.
-      acceptanceCriteria:
-        - "PurchaseOrder CMP entity created with order metadata (ID, userId, email, date, locale, total price)"
-        - "Order ID generated uniquely via UniqueIdGenerator with seed '1001'"
-        - "Two-phase creation: ejbCreate() sets CMP fields; ejbPostCreate() creates and relates ContactInfo, CreditCard, LineItem entities"
-        - "LineItem entities store product reference, quantity, unit price, and fulfillment tracking (quantityShipped)"
-        - "Order total calculated as SUM(unitPrice × quantity) per cart item"
-        - "Order XML serialized with DTD validation including OrderId, UserId, EmailId, OrderDate, ShippingInfo, BillingInfo, TotalPrice, CreditCard, LineItems"
-        - "All operations execute within Required transaction context for ACID guarantees"
-      outOfScope:
-        - Payment authorization or capture
-        - Order modification or cancellation after placement
-        - Multi-shipment support
-        - Order tracking
-        - Return processing
-      risksAssumptions: []
-      techStack: []
-      affectedCode: []
-      screens:
-        - "Order placement confirmation (OP-SCREEN-0010): displays submitted order with order ID, customer info, shipping/billing addresses, line items, totals, and confirmation message"
-  - slug: order-fulfillment
-    title: Order Fulfillment Processing
-    order: 6
-    dependsOn:
-      - order-placement
-    priority: 0
-    change:
-      dir: openspec/changes/sx-order-fulfillment
-      specCapabilities:
-        - order-fulfillment
-    canvas:
-      problem: Fulfillment logic is distributed across session beans and message handlers, with inventory checking, status transitions, and completion semantics implicit in code.
-      solution: Message-driven bean (OrderFulfillmentMDB) receiving order XML via JMS, OrderFulfillmentFacade session bean checking inventory and reducing stock, order status management (PENDING/COMPLETED/DENIED), and invoice generation.
-      userStories:
-        - As an order processor, I want to receive orders asynchronously via JMS, so that order processing is decoupled from order placement.
-        - As an order processor, I want to check inventory availability before fulfillment, so that orders are only fulfilled when items are in stock.
-        - As an order processor, I want to mark orders as COMPLETED, PENDING, or DENIED based on fulfillment success, so that the business can track order status.
-        - As the system, I want to generate invoices when orders are fulfilled, so that customers receive confirmation of shipped items.
-      acceptanceCriteria:
-        - "OrderFulfillmentMDB receives TextMessage with order XML from JMS queue"
-        - "OrderFulfillmentFacade.processPO() converts XML to Order entity and persists with PENDING status"
-        - "checkInventory() verifies inventory quantity >= line item quantity; if insufficient, line item not fulfilled"
-        - "Inventory reduction and item shipment marking (quantityShipped) are atomic within transaction"
-        - "Order marked COMPLETED only when all line items available; remains PENDING if any items unavailable"
-        - "Invoice XML generated for shipped items and published to JMS Topic for order processing center"
-        - "Unfulfilled orders retained for retry when inventory becomes available"
-      outOfScope:
-        - Backorder management
-        - Partial shipment routing
-        - Warehouse location selection
-        - Shipping label generation
-        - Return processing
-      risksAssumptions: []
-      techStack: []
-      affectedCode: []
-  - slug: payment-processing
-    title: Payment Authorization and Settlement
-    order: 7
-    dependsOn:
-      - order-placement
-    priority: 0
     change:
       dir: openspec/changes/sx-payment-processing
       specCapabilities:
         - payment-processing
     canvas:
-      problem: Payment processing is implicit in order creation code with authorization logic, validation rules, and decline handling scattered across helpers and facades.
-      solution: Credit card entity persistence with validation, payment authorization via CreditCardProcessor facade with decline/error handling, and auditable transaction logging.
+      problem: Payment card details must be captured, stored, and displayed for orders, with validation of card format and expiry, but no real authorization or charging.
+      solution: Credit card storage in customer account with validation, card type selection, expiry date capture, and display during checkout and account management.
       userStories:
-        - As a customer, I want my credit card to be authorized during checkout, so that I know my payment will be processed.
-        - As the system, I want to validate credit card details (number, type, expiry), so that invalid cards are rejected before transmission.
-        - As the system, I want to log payment authorization attempts and results, so that disputes can be investigated.
+        - As a shopper, I want to enter my card details once during account creation, so that I don't re-enter them at checkout.
+        - As a shopper, I want to edit my card on file, so that I can update expiry or use a different card.
+        - As the system, I want to validate card format before storing, so that typos don't break later processing.
       acceptanceCriteria:
-        - "CreditCard CMP entity stores card number, type, expiry date, and optional CVV"
-        - "Card validation checks: card number format, expiry date in future, CVV length"
-        - "CreditCardProcessor.authorize() performs authorization via payment gateway with result logging"
-        - "Declined cards result in order denial and customer notification"
-        - "Authorization failures are logged with timestamp, card reference (last 4 digits), and error message"
+        - Card number, type (Java Card, Duke Express, Meow Card), and expiry (month/year) are stored in customer account
+        - Card is displayed in full in account overview (security note: tokenization required for production)
+        - Checkout uses stored card and does not re-ask for payment details
+        - Card type selector provides dropdown list of card brands
       outOfScope:
-        - Payment gateway integration (assumed to be external service)
-        - Recurring billing or subscriptions
-        - Refunds or reversals
-        - PCI compliance enforcement
-        - Multi-currency conversion
-      risksAssumptions: []
-      techStack: []
-      affectedCode: []
-  - slug: notifications
-    title: Order and Fulfillment Notifications
-    order: 8
+        - Real payment processing, authorization, or charging
+        - Decline handling or retry logic
+        - PCI compliance (noted as production requirement)
+        - Tokenization or encryption (noted as production requirement)
+        - Multiple payment methods per customer
+      screens: []
+  - slug: shopping-cart
+    title: Shopping Cart
+    order: 5
     dependsOn:
-      - order-placement
-      - order-fulfillment
-    priority: 0
+      - product-catalog
     change:
-      dir: openspec/changes/sx-notifications
+      dir: openspec/changes/sx-shopping-cart
       specCapabilities:
-        - notifications
+        - shopping-cart
     canvas:
-      problem: Notification logic is implicit across multiple components with email address resolution, template selection, and async delivery scattered throughout.
-      solution: Mailer component with Mail entity persistence, async JMS-based message delivery, locale-specific email templates for order confirmation and shipment notifications.
+      problem: Shoppers need to collect items across browsing sessions, adjust quantities, and maintain a running subtotal without committing to purchase until checkout.
+      solution: Session-scoped shopping cart with item addition/removal, quantity editing, subtotal calculation, and session termination on sign-out.
       userStories:
-        - As a customer, I want to receive an email confirmation after placing an order, so that I have a record of my purchase.
-        - As a customer, I want to receive a notification when my order ships, so that I know when to expect delivery.
-        - As the system, I want to send emails asynchronously via JMS, so that email failures don't block order processing.
+        - As a shopper, I want to add items to my cart from category, product, or search result listings, so that I can collect items across multiple pages.
+        - As a shopper, I want to adjust quantities in my cart before checking out, so that I can correct mistakes.
+        - As a shopper, I want to see a running subtotal, so that I know how much I'm spending.
+        - As a shopper, I want to remove items directly from my cart, so that I can change my mind without re-browsing.
+        - As a shopper, I want an empty cart message when I have no items, so that I know the cart is really empty.
       acceptanceCriteria:
-        - "Mail entity stores email address, locale, and message content"
-        - "Order confirmation email sent after successful order placement with order details"
-        - "Shipment notification email sent when order is fulfilled with tracking/shipping information"
-        - "Mailer component processes messages asynchronously via JMS queue"
-        - "Email templates are locale-specific with translations for supported locales"
-        - "Failed emails are logged and can be manually resent"
+        - Adding an item already in cart increments quantity instead of adding a second line
+        - Quantities are editable per line
+        - Quantities are applied on an explicit Update Cart action
+        - Setting quantity to zero removes the line
+        - Lines can be removed directly without confirmation
+        - Running subtotal is recalculated on update
+        - Empty cart shows explicit message with no checkout path
+        - Cart is session-scoped and cleared on sign-out
       outOfScope:
-        - SMS or push notifications
-        - Notification preferences or opt-out
-        - Email template customization
-        - Real-time delivery tracking
-        - Bulk notification campaigns
-      risksAssumptions: []
-      techStack: []
-      affectedCode: []
+        - Saved carts or wishlists
+        - Cart persistence across sign-outs
+        - One-click ordering or quick checkout
+        - Recommended items or upsell suggestions
+      screens:
+        - Shopping cart
   - slug: supplier-management
-    title: Supplier Inventory and Order Fulfillment
-    order: 9
+    title: Supplier Inventory Management
+    order: 6
     dependsOn:
-      - order-fulfillment
-    priority: 0
+      - authentication
+      - product-catalog
     change:
       dir: openspec/changes/sx-supplier-management
       specCapabilities:
         - supplier-management
     canvas:
-      problem: Supplier management distributes inventory and order fulfillment logic across message-driven beans, entity beans, session beans, and servlet controllers with implicit contracts.
-      solution: Inventory entity (itemId, quantity), supplier portal with form-based login and administrator authorization, inventory update processing, pending order reprocessing after inventory updates, and invoice transmission via JMS.
+      problem: Supplier staff must update inventory quantities, and every update must notify the Order Processing Centre to re-evaluate approved orders waiting on stock and complete any that can now be filled.
+      solution: Supplier portal with authenticated access, inventory table showing current and new quantities, per-row update flags, and batch submission that triggers order fulfillment re-evaluation.
       userStories:
-        - As a supplier administrator, I want to log in to the supplier portal, so that I can access inventory and order functions.
-        - As a supplier administrator, I want to view and update inventory quantities, so that my stock levels are current.
-        - As the system, I want to reprocess pending orders when inventory is updated, so that orders can be fulfilled as soon as stock becomes available.
-        - As the system, I want to send invoices to the order processing center via JMS, so that fulfillment is recorded.
+        - As supplier staff, I want to sign in and view current inventory for all items, so that I know what's on the shelf.
+        - As supplier staff, I want to update quantities for multiple items and submit together, so that I can process a restock quickly.
+        - As supplier staff, I want to confirm which rows are updated via a checkbox, so that I don't accidentally change items.
+        - As the system, I want to notify the OPC when inventory changes, so that waiting orders can be completed if stock is now available.
       acceptanceCriteria:
-        - "Form-based login with administrator role authorization using j_security_check"
-        - "Inventory display shows all items with current quantities in table format"
-        - "Inventory updates validate quantity >= 0 and apply only for checked items"
-        - "Inventory checking prevents overselling: insufficient inventory skips item, continues processing"
-        - "Inventory reduction and shipment marking are atomic within transaction"
-        - "Pending orders reprocessed after inventory updates to fulfill delayed orders"
-        - "Invoices published to INVOICE_MDB_TOPIC for order processing center receipt"
-        - "HTTP session timeout set to 54 minutes for security"
+        - Inventory table lists every item with current quantity, new quantity input, and per-row update checkbox
+        - Only checked rows are saved; unchecked rows are ignored even if a quantity was entered
+        - Entered quantity replaces stored figure (not added to it)
+        - Multiple rows can be submitted in one action
+        - Every committed change notifies the OPC
+        - Supplier receives no customer information, only line items
       outOfScope:
-        - Multi-supplier support
-        - Inventory forecasting or reorder points
-        - Return processing
-        - Supplier performance tracking
-        - Product substitution
-      risksAssumptions: []
-      techStack: []
-      affectedCode: []
+        - Stock reservation at order time
+        - Physical inventory reconciliation
+        - Supplier PO creation or receipt tracking
+        - Multi-warehouse inventory
+        - Reorder alerts or automatic replenishment
+      screens:
+        - Supplier — inventory
+  - slug: order-placement
+    title: Order Placement & Checkout
+    order: 7
+    dependsOn:
+      - shopping-cart
+      - authentication
+      - payment-processing
+      - customer-management
+    change:
+      dir: openspec/changes/sx-order-placement
+      specCapabilities:
+        - order-placement
+    canvas:
+      problem: Shoppers must move from cart to checkout, provide or confirm addresses, and submit an order asynchronously without waiting for approval or fulfillment.
+      solution: Checkout form with billing and shipping address capture (pre-filled from account), payment card confirmation, asynchronous order handoff to OPC, and immediate confirmation with order number.
+      userStories:
+        - As a shopper, I want to move from cart to checkout and enter my addresses, so that my order ships correctly.
+        - As a shopper, I want addresses pre-filled from my account, so that checkout is fast.
+        - As a shopper, I want to use different billing and shipping addresses, so that I can send gifts.
+        - As a shopper, I want confirmation with an order number immediately, so that I know my order was received.
+        - As a shopper, I want checkout validation, so that I don't submit incomplete information.
+      acceptanceCriteria:
+        - Checkout form captures billing and shipping addresses separately
+        - Both addresses are pre-filled from customer account
+        - All fields except second address line are validated as non-empty before submission
+        - Payment card is taken from stored account card (not re-entered)
+        - Checkout with empty cart is rejected to error screen
+        - Confirmation screen shows order number and notification email address
+        - Order is handed off asynchronously; confirmation does not wait on approval or fulfillment
+      outOfScope:
+        - Multiple shipping methods or rate calculation
+        - Tax calculation
+        - Coupon or discount codes
+        - Gift options or messaging
+        - Order modification after submission
+      screens:
+        - Checkout
+        - Order confirmation
+  - slug: order-fulfillment
+    title: Order Fulfillment & Lifecycle
+    order: 8
+    dependsOn:
+      - order-placement
+      - supplier-management
+    change:
+      dir: openspec/changes/sx-order-fulfillment
+      specCapabilities:
+        - order-fulfillment
+    canvas:
+      problem: Orders flow through a state machine (Pending → Approved → Completed, or Pending → Denied) based on approval threshold and stock availability, with asynchronous processing and email notifications at each transition.
+      solution: Order Processing Centre with state machine, threshold-based auto-approval, admin approval for high-value orders, stock-driven completion, and email notification at every status change.
+      userStories:
+        - As a customer with a low-value order, I want automatic approval without waiting, so that I know my order is cleared right away.
+        - As a customer with a high-value order, I want approval to take as long as needed, knowing it's being reviewed, so that the store is protected from fraud.
+        - As a customer, I want email notification at every order status change, so that I know what's happening without visiting the site.
+        - As the system, I want to complete orders automatically once stock arrives, so that no manual step is needed after approval.
+      acceptanceCriteria:
+        - Orders under $500 are approved automatically; orders $500+ are set to Pending
+        - Approval threshold is a single monetary value applied to order total
+        - Every order carries exactly one of four statuses: Pending, Approved, Denied, Completed
+        - Approval releases fulfillment request to supplier for each line item
+        - Approved orders without stock stay Approved and wait for inventory
+        - Orders are marked Completed only when every line is fulfilled
+        - Denial is terminal; denied orders cannot return to Pending
+        - Each status transition sends customer an email
+        - Orders and inventory changes are received and processed durably (asynchronously)
+      outOfScope:
+        - Configurable approval rules beyond total amount
+        - Back-order visibility in admin queue (Approved orders waiting on stock look identical to fresh approvals)
+        - Stock reservation at order time
+        - Partial fulfillment or backorder splitting
+        - Cancellation or refund after order placed
+        - Shipment tracking after completion
+      screens:
+        - Admin — order review
+  - slug: notifications
+    title: Notifications & Messaging
+    order: 9
+    dependsOn:
+      - order-fulfillment
+    change:
+      dir: openspec/changes/sx-notifications
+      specCapabilities:
+        - notifications
+    canvas:
+      problem: Customers must be notified by email at every order status transition, and notifications must be queued so that mail outages do not block order processing.
+      solution: Asynchronous email delivery via message queue, with notifications sent at order submission, approval, denial, and completion.
+      userStories:
+        - As a customer, I want an email when my order is submitted, so that I have a record.
+        - As a customer, I want an email when my order is approved, so that I know it's being processed.
+        - As a customer, I want an email when my order is denied, so that I know it was rejected.
+        - As a customer, I want an email when my order is completed, so that I know it's shipped.
+        - As the system, I want notifications to be queued, so that a mail outage doesn't block order processing.
+      acceptanceCriteria:
+        - Email sent to order's notification address on each status transition (submitted, approved, denied, completed)
+        - Notifications are queued and retried if mail delivery fails
+        - Notification content includes order number, status, and customer email
+      outOfScope:
+        - SMS or push notifications
+        - Notification preferences or unsubscribe
+        - Transactional email services or templates
+        - Notification history or audit trail
+      screens: []
   - slug: admin-operations
-    title: Administrative Console and Operations
+    title: Administrative Console & Reporting
     order: 10
     dependsOn:
       - authentication
       - order-fulfillment
-    priority: 0
     change:
       dir: openspec/changes/sx-admin-operations
       specCapabilities:
         - admin-operations
     canvas:
-      problem: Admin operations are scattered across web forms and rich client components with implicit workflows for order viewing, approval, and financial reporting.
-      solution: Admin console with form-based login, home screen providing rich client Java Web Start launcher and logout, and rich client with tabbed interface for order management and sales analytics.
+      problem: Administrators need to review pending orders, make approval/denial decisions in batches, and view sales performance by category and date range.
+      solution: Admin client with form-based login, order review queue with sortable tables for pending and decided orders, batch approval/denial interface with staged decisions, and sales reporting via pie and bar charts.
       userStories:
-        - As an administrator, I want to log in to the admin console, so that I can access admin functions.
-        - As an administrator, I want to view pending orders in a sortable table, so that I can track order status.
-        - As an administrator, I want to approve or deny orders with bulk operations, so that I can efficiently manage order approvals.
-        - As an administrator, I want to view sales metrics (revenue, order counts) via charts, so that I can monitor business performance.
+        - As an administrator, I want to see pending orders in a sortable queue, so that I can prioritize reviews.
+        - As an administrator, I want to approve or deny multiple orders and commit them together, so that I can work through a queue efficiently.
+        - As an administrator, I want to see sales by category and date range, so that I can monitor business performance.
+        - As an administrator, I want pie and bar charts of sales, so that I can compare category performance visually.
       acceptanceCriteria:
-        - "Admin login screen at /login.jsp with username/password using j_security_check"
-        - "Admin home screen at /index.jsp with Java Web Start launcher link and logout option"
-        - "Rich client provides tabbed interface for Orders and Sales views"
-        - "Orders tab displays pending orders in sortable table with columns: OrderId, UserId, OrderDate, OrderAmount, OrderStatus"
-        - "Order approval interface allows status change to APPROVED or DENIED via dropdown and bulk operations"
-        - "Sales view displays revenue and order quantity charts"
-        - "Commit button submits all status changes to server"
+        - Pending orders and decided orders are shown in separate queues
+        - Each order shows order number, customer, date, amount, and status
+        - Any column can be sorted
+        - Administrator can set pending order to Approved or Denied
+        - Decisions are staged locally and sent to server only on explicit commit
+        - Discarding staged decisions by refreshing requires confirmation
+        - Committed decision cannot be reversed from client
+        - Decided orders are read-only
+        - Sales view shows pie chart (category share) and bar chart (category volume) for chosen date range
+        - Date input validated per locale
       outOfScope:
         - User management or permission configuration
         - Report export or scheduling
         - Audit logging of admin actions
+        - Configurable approval rules
+        - Customer or order data editing
         - Multi-tenant admin support
-        - Workflow automation or approval rules
-      risksAssumptions: []
-      techStack: []
-      affectedCode: []
       screens:
-        - "Admin login screen (ADMIN-UI-SCREEN-0001): username and password fields using j_security_check action"
-        - "Admin home screen (ADMIN-UI-SCREEN-0002): displays after successful login with Java Web Start launcher and logout option"
-        - "Rich client tabbed interface (ADMIN-RICHCLIENT-SCREEN-0001): two main views for Orders (viewing/approving/denying) and Sales (revenue/order quantity charts)"
-        - "Rich client orders view (ADMIN-RICHCLIENT-SCREEN-0002): sortable table displaying OrderId, UserId, OrderDate, OrderAmount, OrderStatus columns"
-        - "Rich client approval interface (ADMIN-RICHCLIENT-SCREEN-0003): editable status cells with dropdown menu for APPROVED/DENIED, bulk Approve/Deny buttons, and Commit button for submissions"
+        - Admin — order review
+        - Admin — sales reporting
 
 artifacts:
   openapi: api/openapi.yaml
   erd: architecture/erd.mermaid
   schema: architecture/schema.sql
-  agents: AGENTS.md
