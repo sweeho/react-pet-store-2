@@ -1,0 +1,15 @@
+divergences:
+  - claim: The $500 approval threshold is fixed in the source and not configurable at deploy time. A second threshold at $50,000 exists in the code but has no behavior attached beyond the first, so all review effectively happens at one level.
+    code_says: |
+      The canIApprove() method in PurchaseOrderMDB checks locale:
+      - For US locale: if (purchaseOrder.getTotalPrice() < 500) return true;
+      - For Japan locale: if (purchaseOrder.getTotalPrice() < 50000) return true;
+      Both thresholds are actively used to determine automatic approval based on customer locale. The $50,000 threshold is NOT inert; it serves as the approval threshold for Japanese orders.
+    document_says: |
+      From PRD: "The $500 figure is fixed in the source, not configurable at deploy time. Any rebuild should make it a setting, and probably a rule set rather than a single number — the current design cannot express 'review all orders from new customers' or 'review anything shipping abroad'. A second threshold at $50,000 exists in the code but has no behaviour attached beyond the first, so all review effectively happens at one level."
+    code_ref: legacy-source/petstore1.3.2/src/apps/opc/src/com/sun/j2ee/blueprints/opc/ejb/PurchaseOrderMDB.java#L183-L191
+    document_ref: design/sources/markdown/java-pet-store-1-3-2-product-requirements-document/extracted.md#Notes on the threshold
+    capability: order-fulfillment
+    severity: major
+    notes: |
+      The PRD incorrectly characterizes the $50,000 threshold as inert when it is actually the active threshold for Japanese orders. This is a significant functional difference: orders in Japan are approved/denied differently than orders in the US based on a different threshold. The new system should model this as locale-aware approval rules rather than as a second inert threshold.

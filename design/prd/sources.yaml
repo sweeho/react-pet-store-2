@@ -1,0 +1,60 @@
+sections:
+  - section: Summary
+    from:
+      - design/sources/markdown/java-pet-store-1-3-2-product-requirements-document/extracted.md#Summary
+      - design/sources/markdown/java-pet-store-1-3-2-user-manual/extracted.md#About this manual
+      - legacy-analysis/discovery/report.md#Executive Summary
+
+  - section: Context
+    from:
+      - legacy-analysis/discovery/report.md#Application Structure
+      - design/sources/markdown/java-pet-store-1-3-2-product-requirements-document/extracted.md#About this document
+      - legacy-analysis/discovery/report.md#Architectural Patterns Identified
+
+  - section: Goals
+    from:
+      - design/sources/markdown/java-pet-store-1-3-2-product-requirements-document/extracted.md#Goals and non-goals
+
+  - section: Non-goals
+    from:
+      - design/sources/markdown/java-pet-store-1-3-2-product-requirements-document/extracted.md#Non-goals
+
+  - section: Users
+    from:
+      - design/sources/markdown/java-pet-store-1-3-2-product-requirements-document/extracted.md#Users and roles
+      - design/sources/markdown/java-pet-store-1-3-2-user-manual/extracted.md#About this manual
+      - design/sources/markdown/java-pet-store-1-3-2-user-manual/extracted.md#Signing in and creating an account
+
+  - section: User journeys
+    from:
+      - design/sources/markdown/java-pet-store-1-3-2-user-manual/extracted.md#Browsing the catalogue
+      - design/sources/markdown/java-pet-store-1-3-2-user-manual/extracted.md#Searching
+      - design/sources/markdown/java-pet-store-1-3-2-user-manual/extracted.md#The shopping cart
+      - design/sources/markdown/java-pet-store-1-3-2-user-manual/extracted.md#Checking out
+      - design/sources/markdown/java-pet-store-1-3-2-user-manual/extracted.md#Managing your account
+      - design/sources/markdown/java-pet-store-1-3-2-user-manual/extracted.md#Administrator client: managing orders
+      - design/sources/markdown/java-pet-store-1-3-2-user-manual/extracted.md#Administrator client: sales charts
+      - design/sources/markdown/java-pet-store-1-3-2-user-manual/extracted.md#Supplier: managing inventory
+
+  - section: Capability map
+    from:
+      - legacy-analysis/discovery/capabilities.csv
+      - design/sources/markdown/java-pet-store-1-3-2-product-requirements-document/extracted.md#Functional requirements: storefront
+      - design/sources/markdown/java-pet-store-1-3-2-product-requirements-document/extracted.md#Functional requirements: order processing
+      - design/sources/markdown/java-pet-store-1-3-2-product-requirements-document/extracted.md#Functional requirements: administration
+      - design/sources/markdown/java-pet-store-1-3-2-product-requirements-document/extracted.md#Functional requirements: supplier
+
+  - section: Screens
+    from:
+      - design/sources/html/java-pet-store-screen-mockups/extracted.md
+      - design/sources/markdown/java-pet-store-1-3-2-user-manual/extracted.md#Reference
+
+  - section: Constraints and assumptions
+    from:
+      - design/sources/markdown/java-pet-store-1-3-2-product-requirements-document/extracted.md#Assumptions and constraints
+      - design/sources/markdown/java-pet-store-1-3-2-product-requirements-document/extracted.md#Explicitly stubbed
+      - legacy-analysis/discovery/report.md#Exclusions & Out-of-Scope
+
+  - section: Open questions
+    from:
+      - design/sources/markdown/java-pet-store-1-3-2-product-requirements-document/extracted.md#Known gaps and open questions
